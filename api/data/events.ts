@@ -15,8 +15,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let athleteId: string
   let oldest: string
   let newest: string
-  const limit = req.query.limit as string
-
   try {
     athleteId = validateAthleteId(req.query.athleteId)
     oldest = validateDateParam(req.query.oldest, 'oldest')
@@ -32,19 +30,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const params = new URLSearchParams({ oldest })
     if (newest) params.append('newest', newest)
-    if (limit) params.append('limit', limit)
 
     const response = await proxyToIntervalsIcu(
       accessToken,
-      `/athlete/${athleteId}/activities?${params}`
+      `/athlete/${athleteId}/events?${params}`
     )
 
     if (!response.ok) {
-      return res.status(response.status).json({ error: 'Failed to fetch activities' })
+      return res.status(response.status).json({ error: 'Failed to fetch events' })
     }
 
-    const activities = await response.json()
-    return res.status(200).json(activities)
+    const events = await response.json()
+    return res.status(200).json(events)
   } catch {
     return res.status(500).json({ error: 'Internal server error' })
   }

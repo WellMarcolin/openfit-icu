@@ -1,6 +1,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getAccessToken, proxyToIntervalsIcu } from '../lib/proxy'
-import { validateAthleteId, validateDateParam } from '../lib/validation'
+import { validateAthleteId } from '../lib/validation'
+
+const VALID_SPORT_TYPES = new Set([
+  'Ride', 'Run', 'Swim', 'Walk', 'Hike', 'WeightTraining',
+  'VirtualRide', 'VirtualRun', 'TrailRun', 'GravelRide', 'MountainBikeRide',
+])
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -13,38 +18,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   let athleteId: string
-  let oldest: string
-  let newest: string
-  const limit = req.query.limit as string
-
   try {
     athleteId = validateAthleteId(req.query.athleteId)
-    oldest = validateDateParam(req.query.oldest, 'oldest')
-    newest = validateDateParam(req.query.newest, 'newest')
   } catch (error) {
     return res.status(400).json({ error: (error as Error).message })
   }
 
-  if (!oldest) {
-    return res.status(400).json({ error: 'Missing required parameter: oldest' })
+  const type = Array.isArray(req.query.type) ? req.query.type[0] : req.query.type || 'Ride'
+  if (!VALID_SPORT_TYPES.has(type)) {
+    return res.status(400).json({ error: `Invalid sport type: ${type}` })
   }
 
   try {
-    const params = new URLSearchParams({ oldest })
-    if (newest) params.append('newest', newest)
-    if (limit) params.append('limit', limit)
-
+    const params = new URLSearchParams({ type })
     const response = await proxyToIntervalsIcu(
       accessToken,
-      `/athlete/${athleteId}/activities?${params}`
+      `/athlete/${athleteId}/power-curves?${params}`
     )
 
     if (!response.ok) {
-      return res.status(response.status).json({ error: 'Failed to fetch activities' })
+      return res.status(response.status).json({ error: 'Failed to fetch power curves' })
     }
 
-    const activities = await response.json()
-    return res.status(200).json(activities)
+    const curves = await response.json()
+    return res.status(200).json(curves)
   } catch {
     return res.status(500).json({ error: 'Internal server error' })
   }
