@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AssistantRuntimeProvider,
@@ -35,8 +34,8 @@ const unavailableStatus: HealthAssistantStatus = {
 function messageText(message: ThreadMessage | undefined) {
   if (!message) return ''
   return message.content
-    .filter((part) => part.type === 'text')
-    .map((part) => part.text)
+    .filter((part: any) => part.type === 'text')
+    .map((part: any) => part.text)
     .join('\n')
     .trim()
 }
@@ -119,7 +118,7 @@ export function HealthAssistant({
   }, [open, checkAssistantStatus])
 
   const modelAdapter = useMemo<ChatModelAdapter>(() => ({
-    async *run({ messages, abortSignal }) {
+    async *run({ messages, abortSignal }: { messages: any[]; abortSignal: AbortSignal }) {
       const prompt = messageText(messages.at(-1))
       if (!prompt) throw new Error('Write a question before sending it.')
 
@@ -234,7 +233,7 @@ function AssistantThread({ ready }: { ready: boolean }) {
   return (
     <ThreadPrimitive.Root className="assistant-thread">
       <ThreadPrimitive.Viewport className="assistant-viewport">
-        <AuiIf condition={(state) => state.thread.isEmpty}>
+        <AuiIf condition={(state: any) => state.thread.isEmpty}>
           <div className="assistant-welcome">
             <h2>Ask about your training.</h2>
             <p>I can analyze fitness trends, power curves, and wellness data.</p>
@@ -248,7 +247,7 @@ function AssistantThread({ ready }: { ready: boolean }) {
 
         <div className="assistant-messages">
           <ThreadPrimitive.Messages>
-            {({ message }) => message.role === 'user' ? <UserMessage /> : <AssistantMessage />}
+            {({ message }: { message: any }) => message.role === 'user' ? <UserMessage /> : <AssistantMessage />}
           </ThreadPrimitive.Messages>
         </div>
 
@@ -264,12 +263,12 @@ function AssistantThread({ ready }: { ready: boolean }) {
               placeholder={ready ? 'Ask about your training…' : 'Configure OpenCode to chat'}
               aria-label="Message training assistant"
             />
-            <AuiIf condition={(state) => !state.thread.isRunning}>
+            <AuiIf condition={(state: any) => !state.thread.isRunning}>
               <ComposerPrimitive.Send className="assistant-send" disabled={!ready} aria-label="Send message">
                 <ArrowUp aria-hidden="true" />
               </ComposerPrimitive.Send>
             </AuiIf>
-            <AuiIf condition={(state) => state.thread.isRunning}>
+            <AuiIf condition={(state: any) => state.thread.isRunning}>
               <ComposerPrimitive.Cancel className="assistant-send is-cancel" aria-label="Stop response">
                 <Square aria-hidden="true" />
               </ComposerPrimitive.Cancel>
