@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { validateAthleteId, validateDateParam } from '../lib/validation'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -6,13 +7,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const accessToken = req.cookies?.access_token
-  const athleteId = req.query.athleteId || '0'
-  const oldest = req.query.oldest as string
-  const newest = req.query.newest as string
-  const limit = req.query.limit as string
 
   if (!accessToken) {
     return res.status(401).json({ error: 'Not authenticated' })
+  }
+
+  let athleteId: string
+  let oldest: string
+  let newest: string
+  const limit = req.query.limit as string
+
+  try {
+    athleteId = validateAthleteId(req.query.athleteId)
+    oldest = validateDateParam(req.query.oldest, 'oldest')
+    newest = validateDateParam(req.query.newest, 'newest')
+  } catch (error) {
+    return res.status(400).json({ error: (error as Error).message })
   }
 
   if (!oldest) {

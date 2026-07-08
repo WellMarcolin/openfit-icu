@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { validateAthleteId } from '../lib/validation'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -6,10 +7,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const accessToken = req.cookies?.access_token
-  const athleteId = req.query.id || '0'
 
   if (!accessToken) {
     return res.status(401).json({ error: 'Not authenticated' })
+  }
+
+  let athleteId: string
+  try {
+    athleteId = validateAthleteId(req.query.id)
+  } catch (error) {
+    return res.status(400).json({ error: (error as Error).message })
   }
 
   try {
