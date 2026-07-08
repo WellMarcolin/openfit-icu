@@ -2,14 +2,25 @@ import { describe, expect, it } from 'vitest'
 import { createDemoData } from './demo'
 
 describe('createDemoData', () => {
-  it('creates a complete deterministic dashboard for the selected date', () => {
-    const first = createDemoData('2026-06-22')
-    const second = createDemoData('2026-06-22')
+  it('returns data for today', () => {
+    const data = createDemoData()
+    expect(data.source).toBe('demo')
+    expect(data.profile.displayName).toBeTruthy()
+    expect(data.activities.length).toBeGreaterThan(0)
+    expect(data.fitness.ctl).not.toBeNull()
+    expect(data.wellness.hrv).not.toBeNull()
+  })
 
-    expect(first.selectedDate).toBe('2026-06-22')
-    expect(first.activity.steps).toBe(second.activity.steps)
-    expect(first.trends).toHaveLength(14)
-    expect(first.health.heartRateIntraday).toHaveLength(48)
-    expect(first.sleep.stages.reduce((sum, stage) => sum + stage.minutes, 0)).toBeGreaterThan(0)
+  it('returns data for a specific date', () => {
+    const date = '2026-06-15'
+    const data = createDemoData(date)
+    expect(data.selectedDate).toBe(date)
+    expect(data.trends.length).toBe(14)
+  })
+
+  it('generates valid data for any date', () => {
+    const data = createDemoData('2026-06-15')
+    expect(data.wellness.hrv).toBeGreaterThan(0)
+    expect(data.fitness.ctl).toBeGreaterThan(0)
   })
 })

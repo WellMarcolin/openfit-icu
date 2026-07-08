@@ -1,226 +1,112 @@
-import type { DashboardData, PageId, TrendPoint } from '@/types'
+import type { DashboardData, PageId } from '@/types'
 
 export interface AssistantNavigation {
   page?: PageId
   date?: string
 }
 
-const navigationPattern = /\s*<!--\s*openfit:navigate\s+(\{[\s\S]*?\})\s*-->\s*/g
-const validPages = new Set<PageId>(['today', 'activity', 'health', 'sleep', 'body', 'devices'])
-
-function validIsoDate(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
-  const [year, month, day] = value.split('-').map(Number)
-  const parsed = new Date(Date.UTC(year, month - 1, day, 12))
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
-}
-
-function withoutNulls(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(withoutNulls).filter((item) => item !== null && item !== undefined)
-  }
-  if (!value || typeof value !== 'object') return value
-  return Object.fromEntries(
-    Object.entries(value)
-      .filter(([, item]) => item !== null && item !== undefined && item !== '')
-      .map(([key, item]) => [key, withoutNulls(item)]),
-  )
-}
-
-function compactTrend(point: TrendPoint) {
-  return withoutNulls({
-    date: point.date,
-    steps: point.steps,
-    caloriesOut: point.calories,
-    distanceKm: point.distanceKm,
-    floors: point.floors,
-    activeMinutes: point.activeMinutes,
-    zoneMinutes: point.zoneMinutes,
-    sedentaryMinutes: point.sedentaryMinutes,
-    restingHeartRateBpm: point.restingHeartRate,
-    hrvMs: point.hrvMs,
-    breathingRatePerMinute: point.breathingRate,
-    spo2Percent: point.spo2,
-    skinTemperatureDeltaC: point.skinTemperature,
-    coreTemperatureC: point.coreTemperature,
-    cardioScore: point.cardioScore,
-    sleepMinutes: point.sleepMinutes,
-    sleepScore: point.sleepScore,
-    sleepEfficiencyPercent: point.sleepEfficiency,
-    weightKg: point.weight,
-    bodyFatPercent: point.bodyFat,
-    waterMl: point.waterMl,
-    caloriesIn: point.caloriesIn,
-  })
-}
-
-function compactDay(data: DashboardData) {
-  return withoutNulls({
-    date: data.selectedDate,
-    activity: {
-      steps: data.activity.steps,
-      stepsGoal: data.activity.stepsGoal,
-      caloriesOut: data.activity.calories,
-      caloriesGoal: data.activity.caloriesGoal,
-      distanceKm: data.activity.distanceKm,
-      distanceGoalKm: data.activity.distanceGoalKm,
-      floors: data.activity.floors,
-      floorsGoal: data.activity.floorsGoal,
-      activeMinutes: data.activity.activeMinutes,
-      lightActiveMinutes: data.activity.lightActiveMinutes,
-      moderateActiveMinutes: data.activity.moderateActiveMinutes,
-      vigorousActiveMinutes: data.activity.vigorousActiveMinutes,
-      activeMinutesGoal: data.activity.activeMinutesGoal,
-      zoneMinutes: data.activity.zoneMinutes,
-      sedentaryMinutes: data.activity.sedentaryMinutes,
-    },
-    health: {
-      currentHeartRateBpm: data.health.currentHeartRate,
-      restingHeartRateBpm: data.health.restingHeartRate,
-      heartRateMinBpm: data.health.heartRateMin,
-      heartRateMaxBpm: data.health.heartRateMax,
-      hrvMs: data.health.hrvMs,
-      hrvDeepSleepRmssdMs: data.health.hrvDeepSleepRmssdMs,
-      hrvEntropy: data.health.hrvEntropy,
-      nonRemHeartRateBpm: data.health.nonRemHeartRate,
-      breathingRatePerMinute: data.health.breathingRate,
-      spo2Percent: data.health.spo2,
-      spo2MinPercent: data.health.spo2Min,
-      spo2MaxPercent: data.health.spo2Max,
-      skinTemperatureDeltaC: data.health.skinTemperature,
-      skinNightlyTemperatureC: data.health.skinNightlyTemperatureCelsius,
-      skinBaselineTemperatureC: data.health.skinBaselineTemperatureCelsius,
-      skinTemperatureStddev30dC: data.health.skinTemperatureStddev30dCelsius,
-      coreTemperatureC: data.health.coreTemperature,
-      vo2Max: data.health.vo2Max,
-      cardioScore: data.health.cardioScore,
-      ecgClassification: data.health.ecgClassification,
-      bloodGlucoseMgDl: data.health.bloodGlucoseMgDl,
-      irregularRhythmAlerts: data.health.irregularRhythmAlerts,
-    },
-    sleep: {
-      totalMinutes: data.sleep.totalMinutes,
-      goalMinutes: data.sleep.goalMinutes,
-      score: data.sleep.score,
-      efficiencyPercent: data.sleep.efficiency,
-      startTime: data.sleep.startTime,
-      endTime: data.sleep.endTime,
-      stagesMinutes: Object.fromEntries(data.sleep.stages.map((stage) => [stage.key, stage.minutes])),
-      stageTransitions: data.sleep.stageTransitions,
-      minutesToFallAsleep: data.sleep.minutesToFallAsleep,
-      minutesAfterWakeUp: data.sleep.minutesAfterWakeUp,
-      timeInBedMinutes: data.sleep.timeInBed,
-      minutesAwake: data.sleep.minutesAwake,
-    },
-    body: {
-      weightKg: data.body.weightKg,
-      weightGoalKg: data.body.weightGoalKg,
-      bmi: data.body.bmi,
-      bodyFatPercent: data.body.bodyFat,
-      waterMl: data.body.waterMl,
-      waterGoalMl: data.body.waterGoalMl,
-      caloriesIn: data.body.caloriesIn,
-    },
-    activities: data.activities
-      .filter((activity) => activity.date === data.selectedDate)
-      .map((activity) => withoutNulls({
-        name: activity.name,
-        time: activity.time,
-        durationMinutes: activity.durationMinutes,
-        calories: activity.calories,
-        distanceKm: activity.distanceKm,
-        averageHeartRateBpm: activity.averageHeartRate,
-        zoneMinutes: activity.zoneMinutes,
-        steps: activity.steps,
-        averagePaceSecondsPerMeter: activity.averagePaceSecondsPerMeter,
-        heartZoneMinutes: activity.heartZoneMinutes,
-      })),
-  })
+function hasValue(value: number | null | undefined): value is number {
+  return value !== null && value !== undefined && Number.isFinite(value)
 }
 
 export function buildHealthAssistantContext(
-  current: DashboardData,
-  archiveDays: DashboardData[],
-  page: PageId,
-) {
-  const days = new Map<string, unknown>()
+  data: DashboardData,
+  _archive: DashboardData[],
+  _currentPage: PageId
+): string {
+  const ctx: Record<string, any> = {
+    athlete: {
+      name: data.profile.displayName,
+      weight: data.profile.weight,
+      ftp: data.profile.ftp,
+      eftp: data.profile.eftp,
+      resting_hr: data.profile.restingHR,
+      sports: data.profile.sports,
+    },
+    fitness: {
+      ctl: data.fitness.ctl,
+      atl: data.fitness.atl,
+      tsb: data.fitness.tsb,
+      ramp_rate: data.fitness.rampRate,
+      ctl_history: data.fitness.ctlHistory.slice(-30),
+      atl_history: data.fitness.atlHistory.slice(-30),
+      tsb_history: data.fitness.tsbHistory.slice(-30),
+    },
+    activity: {
+      today_load: data.activity.todayLoad,
+      today_activities: data.activity.todayActivities.map((a) => ({
+        name: a.name,
+        type: a.type,
+        moving_time: a.movingTime,
+        distance_km: a.distance,
+        training_load: a.trainingLoad,
+        intensity: a.intensity,
+        avg_power: a.avgPower,
+        avg_hr: a.avgHeartRate,
+      })),
+      recent_activities: data.activities.slice(0, 5).map((a) => ({
+        name: a.name,
+        type: a.type,
+        date: a.startDate,
+        training_load: a.trainingLoad,
+      })),
+    },
+    wellness: {
+      weight: data.wellness.weight,
+      resting_hr: data.wellness.restingHR,
+      hrv: data.wellness.hrv,
+      sleep_minutes: data.wellness.sleepMinutes,
+      sleep_score: data.wellness.sleepScore,
+      mood: data.wellness.mood,
+      stress: data.wellness.stress,
+      fatigue: data.wellness.fatigue,
+      readiness: data.wellness.readiness,
+      spo2: data.wellness.spO2,
+    },
+    power: {
+      ftp: data.power.ftp,
+      eftp: data.power.eftp,
+      vo2max_5m: data.power.vo2max5m,
+      wkg_5m: data.power.wkg5m,
+      curve_points: data.power.curves.slice(0, 7).map((c) => ({
+        secs: c.secs,
+        watts: c.watts,
+        wkg: c.wattsPerKg,
+      })),
+    },
+    events: data.events.slice(0, 5).map((e) => ({
+      name: e.name,
+      type: e.type,
+      date: e.startDate,
+      category: e.category,
+    })),
+    selected_date: data.selectedDate,
+  }
 
-  for (const trend of current.trends) days.set(trend.date, compactTrend(trend))
-  for (const day of archiveDays) days.set(day.selectedDate, compactDay(day))
-  days.set(current.selectedDate, compactDay(current))
-
-  const sortedDays = [...days.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([, value]) => value)
-
-  const selectedDetail = withoutNulls({
-    summary: compactDay(current),
-    intraday: {
-      steps: current.activity.stepsIntraday,
-      calories: current.activity.caloriesIntraday,
-      heartRate: current.health.heartRateIntraday,
-    },
-    sleepStageTimeline: current.sleep.stageTimeline,
-    insights: current.insights,
-    device: current.device,
-    syncCoverage: current.sync,
-  })
-
-  return JSON.stringify(withoutNulls({
-    schema: 'openfit-health-context/v1',
-    generatedAt: new Date().toISOString(),
-    source: current.source,
-    app: {
-      currentPage: page,
-      selectedDate: current.selectedDate,
-      navigablePages: ['today', 'activity', 'health', 'sleep', 'body', 'devices'],
-    },
-    profile: {
-      displayName: current.profile.displayName,
-      memberSince: current.profile.memberSince,
-      timezone: current.profile.timezone,
-    },
-    units: {
-      heartRate: 'bpm',
-      hrv: 'ms',
-      breathingRate: 'breaths/min',
-      spo2: '%',
-      temperature: '°C',
-      weight: 'kg',
-      distance: 'km',
-      glucose: 'mg/dL',
-      energy: 'kcal',
-    },
-    archive: {
-      dayCount: sortedDays.length,
-      firstDate: sortedDays.length ? [...days.keys()].sort()[0] : null,
-      lastDate: sortedDays.length ? [...days.keys()].sort().at(-1) : null,
-      daily: sortedDays,
-    },
-    selectedDayDetail: selectedDetail,
-  }))
+  return JSON.stringify(ctx, null, 2)
 }
 
 export function parseAssistantNavigation(text: string): AssistantNavigation | null {
-  navigationPattern.lastIndex = 0
-  const match = navigationPattern.exec(text)
+  const match = text.match(/<!--\s*openfit-icu:navigate\s+(\{.*?\})\s*-->/)
   if (!match) return null
+
   try {
-    const value = JSON.parse(match[1]) as AssistantNavigation
-    const page = value.page && validPages.has(value.page) ? value.page : undefined
-    const date = value.date && validIsoDate(value.date) ? value.date : undefined
-    return page || date ? { page, date } : null
+    const parsed = JSON.parse(match[1])
+    if (parsed.page || parsed.date) {
+      return { page: parsed.page, date: parsed.date }
+    }
   } catch {
-    return null
+    // Invalid JSON in navigation directive
   }
+
+  return null
 }
 
-export function stripAssistantNavigation(text: string) {
-  navigationPattern.lastIndex = 0
-  return text.replace(navigationPattern, '').trim()
+export function stripAssistantNavigation(text: string): string {
+  return text.replace(/<!--\s*openfit-icu:navigate\s+\{.*?\}\s*-->/g, '').trim()
 }
 
-export function visibleAssistantText(text: string) {
-  const marker = text.indexOf('<!--')
-  return (marker >= 0 ? text.slice(0, marker) : text).trimEnd()
+export function visibleAssistantText(text: string): string | null {
+  const stripped = stripAssistantNavigation(text)
+  return stripped || null
 }

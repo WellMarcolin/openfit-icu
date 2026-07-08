@@ -10,7 +10,7 @@ interface PanelProps {
   children: ReactNode
   className?: string
   tone?: 'default' | 'mint' | 'blue' | 'violet' | 'amber'
-  category?: 'activity' | 'heart' | 'sleep' | 'recovery' | 'body' | 'device'
+  category?: 'activity' | 'heart' | 'sleep' | 'recovery' | 'body' | 'device' | 'fitness' | 'power' | 'wellness' | 'calendar' | 'training' | 'summary'
   onClick?: () => void
   ariaLabel?: string
 }

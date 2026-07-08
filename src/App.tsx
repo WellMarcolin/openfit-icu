@@ -30,12 +30,11 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import type { DashboardData, FitbitAuthStatus, FitbitConfigInput, HealthProvider, PageId } from '@/types'
+import type { DashboardData, AuthStatus, PageId } from '@/types'
 import { createDemoData, localIso } from '@/data/demo'
-import { normalizeFitbitData } from '@/data/normalize'
 import { formatDate, relativeTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { ActivityView, BodyView, DevicesView, HealthView, SleepView, TodayView } from '@/components/Views'
+import { ActivityView, WellnessView, FitnessView, PowerView, CalendarView, DataSourcesView, TodayView } from '@/components/Views'
 import { HealthAssistant } from '@/components/HealthAssistant'
 import type { AssistantNavigation } from '@/lib/health-assistant'
 import type { AppIcon } from '@/components/icons'
@@ -50,51 +49,38 @@ import {
   CloudIcon,
   DeviceIcon,
   DisconnectIcon,
-  ExportIcon,
-  ExternalIcon,
   HeartIcon,
   LoaderIcon,
   SettingsIcon,
   ShieldIcon,
-  SleepIcon,
   SparkleIcon,
   StepsIcon,
   TodayIcon,
 } from '@/components/icons'
 
-type NavCategory = 'summary' | 'activity' | 'heart' | 'sleep' | 'body' | 'device'
+type NavCategory = 'summary' | 'training' | 'fitness' | 'power' | 'wellness' | 'calendar' | 'device'
 
 const navItems: Array<{ id: PageId; label: string; copy: string; icon: AppIcon; category: NavCategory }> = [
-  { id: 'today', label: 'Today', copy: 'The day’s essential overview.', icon: TodayIcon, category: 'summary' },
-  { id: 'activity', label: 'Activity', copy: 'Goals, hourly distribution, and workouts.', icon: ActivityIcon, category: 'activity' },
-  { id: 'health', label: 'Health', copy: 'Cardiac and physiological signals over time.', icon: HeartIcon, category: 'heart' },
-  { id: 'sleep', label: 'Sleep', copy: 'Duration, quality, and composition of your latest night’s sleep.', icon: SleepIcon, category: 'sleep' },
-  { id: 'body', label: 'Body', copy: 'Weight, composition, and daily balance.', icon: BodyIcon, category: 'body' },
-  { id: 'devices', label: 'Data', copy: 'Sources, coverage, and local protection.', icon: DeviceIcon, category: 'device' },
+  { id: 'today', label: 'Today', copy: 'Training overview and fitness status.', icon: TodayIcon, category: 'summary' },
+  { id: 'activity', label: 'Activity', copy: 'Workouts, training load, and intervals.', icon: ActivityIcon, category: 'training' },
+  { id: 'fitness', label: 'Fitness', copy: 'CTL, ATL, TSB and performance management.', icon: StepsIcon, category: 'fitness' },
+  { id: 'power', label: 'Power', copy: 'Power curves, FTP, and W/kg.', icon: ActivityIcon, category: 'power' },
+  { id: 'wellness', label: 'Wellness', copy: 'HRV, sleep, mood, and readiness.', icon: HeartIcon, category: 'wellness' },
+  { id: 'calendar', label: 'Calendar', copy: 'Training plan and upcoming events.', icon: CalendarIcon, category: 'calendar' },
+  { id: 'data-sources', label: 'Data', copy: 'Intervals.icu connection and settings.', icon: DeviceIcon, category: 'device' },
 ]
 
-const defaultStatus: FitbitAuthStatus = {
-  isElectron: Boolean(window.fitbit),
-  configured: false,
+const defaultStatus: AuthStatus = {
   connected: false,
-  clientId: '',
-  redirectUri: 'http://127.0.0.1:42813/oauth/callback',
-  hasClientSecret: false,
-  storageEncrypted: false,
+  method: null,
+  athleteId: null,
+  athleteName: null,
   lastSyncAt: null,
-  provider: 'google-health',
 }
 
 interface ToastState {
   tone: 'success' | 'error' | 'neutral'
   message: string
-}
-
-interface SyncProgressState {
-  completed: number
-  total: number
-  key?: string
-  date?: string
 }
 
 function shiftDate(value: string, days: number) {
@@ -111,6 +97,11 @@ function IconButton({ label, children, ...props }: { label: string; children: Re
   )
 }
 
+function getSourceLabel(status: AuthStatus, dataSource: DashboardData['source']): string {
+  if (status.connected) return 'Intervals.icu'
+  return dataSource === 'demo' ? 'Demo data' : 'Local cache'
+}
+
 export default function App() {
   const [page, setPage] = useState<PageId>('today')
   const [selectedDate, setSelectedDate] = useState(localIso())
@@ -119,14 +110,10 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [syncing, setSyncing] = useState(false)
-  const [syncTargetDate, setSyncTargetDate] = useState<string | null>(null)
   const [connecting, setConnecting] = useState(false)
-  const [syncProgress, setSyncProgress] = useState<SyncProgressState | null>(null)
   const [toast, setToast] = useState<ToastState | null>(null)
   const selectedDateRef = useRef(selectedDate)
-  const dataDateRef = useRef(data.selectedDate)
   const syncingRef = useRef(false)
-  const syncTargetDateRef = useRef<string | null>(null)
   const queuedDateRef = useRef<string | null>(null)
 
   useLayoutEffect(() => {
@@ -137,122 +124,197 @@ export default function App() {
     selectedDateRef.current = selectedDate
   }, [selectedDate])
 
-  useEffect(() => {
-    dataDateRef.current = data.selectedDate
-  }, [data.selectedDate])
-
-  const loadNativeState = useCallback(async () => {
-    if (!window.fitbit) return
+  const checkAuth = useCallback(async () => {
     try {
-      const [nextStatus, cached] = await Promise.all([window.fitbit.getStatus(), window.fitbit.getCachedData()])
-      setStatus(nextStatus)
-      if (cached) {
-        const normalized = normalizeFitbitData(cached)
-        dataDateRef.current = normalized.selectedDate
-        selectedDateRef.current = normalized.selectedDate
-        setData({ ...normalized, source: 'cache' })
-        setSelectedDate(normalized.selectedDate)
+      const response = await fetch('/api/auth/status')
+      if (response.ok) {
+        const authStatus = await response.json()
+        setStatus(authStatus)
       }
+    } catch {
+      // Not authenticated, demo mode
+    }
+  }, [])
+
+  const syncData = useCallback(async (date: string) => {
+    try {
+      const response = await fetch(`/api/auth/status`)
+      if (!response.ok) return
+      const authStatus = await response.json()
+      if (!authStatus.connected) return
+
+      setSyncing(true)
+      setToast({ tone: 'neutral', message: 'Syncing data from Intervals.icu…' })
+
+      const [athleteRes, activitiesRes, wellnessRes, powerRes, eventsRes] = await Promise.all([
+        fetch(`/api/data/athlete?id=${authStatus.athleteId || '0'}`).catch(() => null),
+        fetch(`/api/data/activities?oldest=${date}&newest=${date}`).catch(() => null),
+        fetch(`/api/data/wellness?date=${date}`).catch(() => null),
+        fetch(`/api/data/power-curves?type=Ride`).catch(() => null),
+        fetch(`/api/data/events?oldest=${date}`).catch(() => null),
+      ])
+
+      const athlete = athleteRes?.ok ? await athleteRes.json() : null
+      const activities = activitiesRes?.ok ? await activitiesRes.json() : []
+      const wellness = wellnessRes?.ok ? await wellnessRes.json() : null
+      const powerCurves = powerRes?.ok ? await powerRes.json() : null
+      const events = eventsRes?.ok ? await eventsRes.json() : []
+
+      setData({
+        source: 'intervals-icu',
+        selectedDate: date,
+        generatedAt: new Date().toISOString(),
+        profile: {
+          displayName: athlete ? `${athlete.firstname ?? ''} ${athlete.lastname ?? ''}`.trim() : 'Athlete',
+          avatar: null,
+          weight: athlete?.weight ?? athlete?.icu_weight ?? null,
+          height: athlete?.height ?? null,
+          ftp: null,
+          eftp: athlete?.eftp ?? null,
+          restingHR: athlete?.icu_resting_hr ?? null,
+          timezone: athlete?.timezone ?? null,
+          sports: ['Ride', 'Run'],
+        },
+        fitness: {
+          ctl: wellness?.ctl ?? null,
+          atl: wellness?.atl ?? null,
+          tsb: wellness?.ctl != null && wellness?.atl != null ? Number((wellness.ctl - wellness.atl).toFixed(1)) : null,
+          rampRate: wellness?.rampRate ?? null,
+          ctlHistory: wellness?.ctlHistory ?? [],
+          atlHistory: wellness?.atlHistory ?? [],
+          tsbHistory: wellness?.tsbHistory ?? [],
+        },
+        activity: {
+          todayLoad: activities.reduce?.((sum: number, a: any) => sum + (a.icu_training_load ?? 0), 0) ?? null,
+          todayActivities: (activities ?? []).map((a: any) => ({
+            id: String(a.id ?? ''),
+            name: String(a.name ?? ''),
+            type: String(a.type ?? 'Ride'),
+            startDate: String(a.start_date_local ?? ''),
+            movingTime: a.moving_time ?? 0,
+            distance: a.distance ? Number((a.distance / 1000).toFixed(2)) : null,
+            trainingLoad: a.icu_training_load ?? null,
+            ftp: a.icu_ftp ?? null,
+            intensity: a.icu_intensity ?? null,
+            avgPower: a.average_watts ?? null,
+            weightedAvgPower: a.icu_weighted_avg_watts ?? null,
+            avgHeartRate: a.average_heartrate ?? null,
+            maxHeartRate: a.max_heartrate ?? null,
+            avgCadence: a.average_cadence ?? null,
+            calories: a.calories ?? null,
+            elevationGain: a.total_elevation_gain ?? null,
+            trainer: Boolean(a.trainer),
+            race: Boolean(a.race),
+            tags: Array.isArray(a.tags) ? a.tags.map(String) : [],
+            source: String(a.source ?? ''),
+            compliance: a.compliance ?? null,
+            variabilityIndex: a.icu_variability_index ?? null,
+            efficiencyFactor: a.icu_efficiency_factor ?? null,
+            decoupling: a.decoupling ?? null,
+            polarizationIndex: a.polarization_index ?? null,
+            zoneTimes: Array.isArray(a.icu_zone_times) ? a.icu_zone_times : null,
+            hrZoneTimes: Array.isArray(a.icu_hr_zones) ? a.icu_hr_zones : null,
+          })),
+          weekLoad: null,
+          weekActivities: null,
+          avgIntensity: null,
+          zoneMinutes: null,
+        },
+        wellness: {
+          weight: wellness?.weight ?? null,
+          restingHR: wellness?.restingHR ?? null,
+          hrv: wellness?.hrv ?? null,
+          hrvSDNN: wellness?.hrvSDNN ?? null,
+          sleepMinutes: wellness?.sleepSecs ? Math.round(wellness.sleepSecs / 60) : null,
+          sleepScore: wellness?.sleepScore ?? null,
+          sleepQuality: wellness?.sleepQuality ?? null,
+          avgSleepingHR: wellness?.avgSleepingHR ?? null,
+          spO2: wellness?.spO2 ?? null,
+          mood: wellness?.mood ?? null,
+          stress: wellness?.stress ?? null,
+          fatigue: wellness?.fatigue ?? null,
+          motivation: wellness?.motivation ?? null,
+          soreness: wellness?.soreness ?? null,
+          readiness: wellness?.readiness ?? null,
+          vo2max: wellness?.vo2max ?? null,
+          bodyFat: wellness?.bodyFat ?? null,
+          systolic: wellness?.systolic ?? null,
+          diastolic: wellness?.diastolic ?? null,
+          hydration: wellness?.hydration ?? null,
+          kcalConsumed: wellness?.kcalConsumed ?? null,
+          respiration: wellness?.respiration ?? null,
+          steps: wellness?.steps ?? null,
+        },
+        power: {
+          curves: powerCurves?.curves ?? [],
+          seasonCurves: powerCurves?.seasonCurves ?? [],
+          ftp: null,
+          eftp: null,
+          vo2max5m: powerCurves?.vo2max_5m ?? null,
+          wkg5m: null,
+        },
+        trends: [],
+        activities: (activities ?? []).map((a: any) => ({
+          id: String(a.id ?? ''),
+          name: String(a.name ?? ''),
+          type: String(a.type ?? 'Ride'),
+          startDate: String(a.start_date_local ?? ''),
+          movingTime: a.moving_time ?? 0,
+          distance: a.distance ? Number((a.distance / 1000).toFixed(2)) : null,
+          trainingLoad: a.icu_training_load ?? null,
+          ftp: a.icu_ftp ?? null,
+          intensity: a.icu_intensity ?? null,
+          avgPower: a.average_watts ?? null,
+          weightedAvgPower: a.icu_weighted_avg_watts ?? null,
+          avgHeartRate: a.average_heartrate ?? null,
+          maxHeartRate: a.max_heartrate ?? null,
+          avgCadence: a.average_cadence ?? null,
+          calories: a.calories ?? null,
+          elevationGain: a.total_elevation_gain ?? null,
+          trainer: Boolean(a.trainer),
+          race: Boolean(a.race),
+          tags: Array.isArray(a.tags) ? a.tags.map(String) : [],
+          source: String(a.source ?? ''),
+          compliance: a.compliance ?? null,
+          variabilityIndex: a.icu_variability_index ?? null,
+          efficiencyFactor: a.icu_efficiency_factor ?? null,
+          decoupling: a.decoupling ?? null,
+          polarizationIndex: a.polarization_index ?? null,
+          zoneTimes: Array.isArray(a.icu_zone_times) ? a.icu_zone_times : null,
+          hrZoneTimes: Array.isArray(a.icu_hr_zones) ? a.icu_hr_zones : null,
+        })),
+        events: (events ?? []).map((e: any) => ({
+          id: e.id ?? 0,
+          startDate: String(e.start_date_local ?? ''),
+          name: String(e.name ?? ''),
+          type: String(e.type ?? 'Ride'),
+          category: e.category ?? 'WORKOUT',
+          movingTime: e.moving_time ?? null,
+          trainingLoad: e.icu_training_load ?? null,
+          indoor: Boolean(e.indoor),
+          description: e.description ? String(e.description) : null,
+        })),
+        insights: [],
+        sync: {
+          endpointCount: 5,
+          successCount: [athleteRes, activitiesRes, wellnessRes, powerRes, eventsRes].filter(r => r?.ok).length,
+          errors: [],
+          lastSyncAt: new Date().toISOString(),
+        },
+      })
+
+      setStatus(prev => ({ ...prev, lastSyncAt: new Date().toISOString() }))
+      setToast({ tone: 'success', message: 'Data updated from Intervals.icu.' })
     } catch (error) {
-      setToast({ tone: 'error', message: error instanceof Error ? error.message : 'Unable to read the local status.' })
-    }
-  }, [])
-
-  const runSync = useCallback(async (requestedDate?: string) => {
-    if (!window.fitbit) {
-      setSettingsOpen(true)
-      return
-    }
-
-    const firstDate = requestedDate ?? selectedDateRef.current
-    if (syncingRef.current) {
-      queuedDateRef.current = firstDate
-      return
-    }
-
-    syncingRef.current = true
-    setSyncing(true)
-    let nextDate: string | null = firstDate
-
-    try {
-      while (nextDate) {
-        const date: string = nextDate
-        queuedDateRef.current = null
-        syncTargetDateRef.current = date
-        setSyncTargetDate(date)
-        setSyncProgress({ completed: 0, total: 0 })
-
-        try {
-          const payload = await window.fitbit.sync(date)
-          const normalized = normalizeFitbitData(payload)
-
-          if (selectedDateRef.current === date) {
-            dataDateRef.current = normalized.selectedDate
-            setData(normalized)
-            setToast({
-              tone: payload.cacheHit || payload.errors.length ? 'neutral' : 'success',
-              message: payload.cacheHit
-                ? 'Day loaded from the local archive.'
-                : payload.errors.length
-                ? `Updated. ${payload.errors.length} sources have no data for this period.`
-                : 'Data updated.',
-            })
-          }
-
-          void window.fitbit.getStatus().then(setStatus).catch(() => undefined)
-        } catch (error) {
-          const queuedDate = queuedDateRef.current
-          const failedDateIsStillSelected = selectedDateRef.current === date
-          const hasDifferentDateQueued = Boolean(queuedDate && queuedDate !== date)
-
-          if (failedDateIsStillSelected && !hasDifferentDateQueued) {
-            selectedDateRef.current = dataDateRef.current
-            setSelectedDate(dataDateRef.current)
-            setToast({ tone: 'error', message: error instanceof Error ? error.message : 'Sync failed.' })
-          }
-        }
-
-        const queuedDate = queuedDateRef.current
-        queuedDateRef.current = null
-        nextDate = queuedDate && queuedDate !== date ? queuedDate : null
-      }
+      setToast({ tone: 'error', message: error instanceof Error ? error.message : 'Sync failed.' })
     } finally {
-      syncingRef.current = false
-      syncTargetDateRef.current = null
-      queuedDateRef.current = null
       setSyncing(false)
-      setSyncTargetDate(null)
-      setSyncProgress(null)
     }
   }, [])
 
   useEffect(() => {
-    void loadNativeState()
-    if (!window.fitbit) return
-    const unsubscribeAuth = window.fitbit.onAuthComplete(async (result) => {
-      setConnecting(false)
-      if (!result.ok) {
-        setToast({ tone: 'error', message: result.error ?? 'Authorization failed.' })
-        return
-      }
-      setSettingsOpen(false)
-      const authDate = selectedDateRef.current
-      setToast({ tone: 'success', message: 'Account connected. Syncing data…' })
-      await loadNativeState()
-      selectedDateRef.current = authDate
-      setSelectedDate(authDate)
-      void runSync(authDate)
-    })
-    const unsubscribeSync = window.fitbit.onSyncProgress((progress) => {
-      if (syncingRef.current && (!progress.date || progress.date === syncTargetDateRef.current)) {
-        setSyncProgress(progress)
-      }
-    })
-    return () => {
-      unsubscribeAuth()
-      unsubscribeSync()
-    }
-  }, [loadNativeState, runSync])
+    void checkAuth()
+  }, [checkAuth])
 
   useEffect(() => {
     if (!toast) return
@@ -261,100 +323,48 @@ export default function App() {
     return () => window.clearTimeout(timer)
   }, [toast])
 
-  const visibleNav = navItems
-
   const changeDate = (date: string) => {
     if (!date || date > localIso()) return
     selectedDateRef.current = date
     setSelectedDate(date)
     if (data.source === 'demo' && !status.connected) {
-      const demoData = createDemoData(date)
-      dataDateRef.current = demoData.selectedDate
-      setData(demoData)
+      setData(createDemoData(date))
       return
     }
-    if (status.connected) void runSync(date)
+    if (status.connected) void syncData(date)
   }
 
-  const connect = async () => {
-    if (!window.fitbit) {
-      setToast({ tone: 'neutral', message: 'Launch OpenFit in the Electron app to connect your health provider.' })
-      return
-    }
-    if (!status.configured) {
-      setSettingsOpen(true)
-      return
-    }
-    setConnecting(true)
-    try {
-      const result = await window.fitbit.connect()
-      if (!result.ok) throw new Error(result.message ?? 'Unable to start OAuth.')
-      setToast({ tone: 'neutral', message: 'Complete authorization in your browser.' })
-    } catch (error) {
-      setConnecting(false)
-      setToast({ tone: 'error', message: error instanceof Error ? error.message : 'Connection failed.' })
-    }
-  }
-
-  const saveAndConnect = async (config: FitbitConfigInput) => {
-    if (!window.fitbit) return
-    try {
-      const nextStatus = await window.fitbit.saveConfig(config)
-      setStatus(nextStatus)
-      setConnecting(true)
-      const result = await window.fitbit.connect()
-      if (!result.ok) throw new Error(result.message ?? 'Unable to start OAuth.')
-      setToast({ tone: 'neutral', message: 'Authorize OpenFit in the browser window.' })
-    } catch (error) {
-      setConnecting(false)
-      setToast({ tone: 'error', message: error instanceof Error ? error.message : 'Invalid configuration.' })
-    }
+  const connect = () => {
+    window.location.href = '/api/auth/login'
   }
 
   const disconnect = async () => {
-    if (!window.fitbit) return
-    setStatus(await window.fitbit.disconnect())
-    setData(createDemoData(selectedDate))
-    setSettingsOpen(false)
-    setPage('today')
-    setToast({ tone: 'success', message: 'Account disconnected and local data removed.' })
-  }
-
-  const exportData = async () => {
-    if (!window.fitbit || data.source === 'demo') {
-      setToast({ tone: 'neutral', message: 'Connect Google Health to export real data.' })
-      return
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+      setStatus(defaultStatus)
+      setData(createDemoData(selectedDate))
+      setSettingsOpen(false)
+      setPage('today')
+      setToast({ tone: 'success', message: 'Disconnected from Intervals.icu.' })
+    } catch {
+      setToast({ tone: 'error', message: 'Failed to disconnect.' })
     }
-    const result = await window.fitbit.exportData()
-    if (!result.canceled) setToast({ tone: 'success', message: 'JSON archive exported.' })
   }
 
   const currentView = useMemo(() => {
     const props = { data, status, navigate: setPage }
     if (page === 'activity') return <ActivityView {...props} />
-    if (page === 'health') return <HealthView {...props} />
-    if (page === 'sleep') return <SleepView {...props} />
-    if (page === 'body') return <BodyView {...props} />
-    if (page === 'devices') return <DevicesView {...props} />
+    if (page === 'fitness') return <FitnessView {...props} />
+    if (page === 'power') return <PowerView {...props} />
+    if (page === 'wellness') return <WellnessView {...props} />
+    if (page === 'calendar') return <CalendarView {...props} />
+    if (page === 'data-sources') return <DataSourcesView {...props} />
     return <TodayView {...props} />
   }, [data, page, status])
 
   const isToday = selectedDate === localIso()
-  const sourceLabel = status.connected
-    ? status.provider === 'fitbit-legacy' ? 'Fitbit legacy' : 'Google Health'
-    : data.source === 'demo' ? 'Demo data' : 'Local cache'
+  const sourceLabel = getSourceLabel(status, data.source)
   const pageMeta = navItems.find((item) => item.id === page) ?? navItems[0]
-  const loadingSelectedDate = syncing && data.selectedDate !== selectedDate
-  const selectedDateQueued = loadingSelectedDate && syncTargetDate !== null && syncTargetDate !== selectedDate
-  const syncProgressPercent = syncProgress && syncProgress.total > 0
-    ? Math.round(syncProgress.completed / syncProgress.total * 100)
-    : null
-  const syncProgressLabel = syncProgress?.total
-    ? `${syncProgress.completed} of ${syncProgress.total} sources`
-    : 'Starting secure sync…'
-  const batteryLevel = data.device?.batteryLevel == null
-    ? null
-    : Math.max(0, Math.min(100, Math.round(data.device.batteryLevel)))
 
   const navigate = (nextPage: PageId) => {
     setPage(nextPage)
@@ -362,14 +372,13 @@ export default function App() {
 
   const navigateFromAssistant = (navigation: AssistantNavigation) => {
     if (navigation.date) changeDate(navigation.date)
-    if (navigation.page) setPage(navigation.page)
+    if (navigation.page) setPage(navigation.page as PageId)
   }
 
   return (
     <SidebarProvider className={cn('app-shell', assistantOpen && 'assistant-open')}>
-      <div className="window-drag-region" />
-      <OpenFitSidebar
-        items={visibleNav}
+      <OpenFitIcuSidebar
+        items={navItems}
         page={page}
         userName={data.profile.displayName}
         userAvatar={data.profile.avatar}
@@ -399,24 +408,15 @@ export default function App() {
             <div className="date-control">
               <IconButton label="Previous day" onClick={() => changeDate(shiftDate(selectedDate, -1))}><ChevronLeftIcon /></IconButton>
               <label className="date-picker">
-                {loadingSelectedDate ? <LoaderCircle className="spin" aria-hidden="true" /> : <CalendarIcon aria-hidden="true" />}
+                <CalendarIcon aria-hidden="true" />
                 <span>{isToday ? 'Today' : formatDate(selectedDate, { day: 'numeric', month: 'short' })}</span>
                 <input type="date" value={selectedDate} max={localIso()} onChange={(event) => changeDate(event.target.value)} />
               </label>
               <IconButton label="Next day" disabled={isToday} onClick={() => changeDate(shiftDate(selectedDate, 1))}><ChevronRightIcon /></IconButton>
             </div>
 
-            {batteryLevel != null && (
-              <div className="fitbit-battery" role="status" aria-label={`Fitbit battery ${batteryLevel}%`}>
-                <span className="battery-glyph" aria-hidden="true">
-                  <span className="battery-charge" style={{ width: `${batteryLevel}%` }} />
-                </span>
-                <span className="battery-percent">{batteryLevel}%</span>
-              </div>
-            )}
-
             <IconButton
-              label={assistantOpen ? 'Close health assistant' : 'Open health assistant'}
+              label={assistantOpen ? 'Close assistant' : 'Open assistant'}
               className={cn('assistant-toggle', assistantOpen && 'is-active')}
               aria-controls="health-assistant"
               aria-expanded={assistantOpen}
@@ -426,57 +426,25 @@ export default function App() {
             </IconButton>
             {status.connected ? (
               <>
-                {syncing && (
-                  <span className="sync-status" role="status" aria-live="polite">
-                    {syncProgress?.total ? `${syncProgress.completed}/${syncProgress.total}` : 'Syncing'}
-                  </span>
-                )}
                 <IconButton
-                  label={syncProgress?.total ? `Syncing data ${syncProgress.completed} of ${syncProgress.total}` : syncing ? 'Starting data sync' : 'Refresh data'}
+                  label="Refresh data from Intervals.icu"
                   className="refresh-button"
-                  onClick={() => runSync()}
+                  onClick={() => syncData(selectedDate)}
                   disabled={syncing}
                 >
                   {syncing ? <LoaderCircle className="spin" /> : <RefreshCw />}
                 </IconButton>
               </>
             ) : (
-              <Button className="connect-button" aria-label={`Connect ${status.provider === 'fitbit-legacy' ? 'Fitbit legacy' : 'Google Health'}`} onClick={connect} disabled={connecting}>
+              <Button className="connect-button" aria-label="Connect Intervals.icu" onClick={connect} disabled={connecting}>
                 {connecting ? <LoaderIcon className="spin" /> : <CloudIcon />}<span>Connect</span>
               </Button>
             )}
           </div>
         </header>
 
-        <div className="page-content" key={page} aria-busy={loadingSelectedDate}>
-          {loadingSelectedDate ? (
-            <div className="date-loading" role="status" aria-live="polite">
-              <LoaderCircle className="spin" aria-hidden="true" />
-              <div>
-                <strong>
-                  {selectedDateQueued
-                    ? `${formatDate(selectedDate, { weekday: 'long', day: 'numeric', month: 'long' })} is next`
-                    : `Loading ${formatDate(selectedDate, { weekday: 'long', day: 'numeric', month: 'long' })}`}
-                </strong>
-                <span>
-                  {selectedDateQueued && syncTargetDate
-                    ? `Finishing ${formatDate(syncTargetDate, { day: 'numeric', month: 'short' })} first · ${syncProgressLabel}`
-                    : syncProgressLabel}
-                </span>
-                <div
-                  className={cn('date-loading-progress', syncProgressPercent === null && 'is-indeterminate')}
-                  role="progressbar"
-                  aria-label="Data sync progress"
-                  aria-valuemin={0}
-                  aria-valuemax={syncProgress?.total || 100}
-                  aria-valuenow={syncProgress?.total ? syncProgress.completed : undefined}
-                >
-                  <i style={{ width: syncProgressPercent === null ? '32%' : `${syncProgressPercent}%` }} />
-                </div>
-                {selectedDateQueued && <small>You can keep moving between days; the latest selection loads next.</small>}
-              </div>
-            </div>
-          ) : currentView}
+        <div className="page-content" key={page}>
+          {currentView}
         </div>
       </SidebarInset>
 
@@ -491,11 +459,9 @@ export default function App() {
       <SettingsDialog
         open={settingsOpen}
         status={status}
-        connecting={connecting}
+        dataSource={data.source}
         onOpenChange={setSettingsOpen}
-        onSave={saveAndConnect}
         onConnect={connect}
-        onExport={exportData}
         onDisconnect={disconnect}
       />
 
@@ -510,7 +476,7 @@ export default function App() {
   )
 }
 
-function OpenFitSidebar({
+function OpenFitIcuSidebar({
   items,
   page,
   userName,
@@ -533,9 +499,11 @@ function OpenFitSidebar({
     .filter(Boolean)
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
-    .join('') || 'PB'
-  const wellbeingItems = items.filter((item) => item.id !== 'devices')
-  const dataItem = items.find((item) => item.id === 'devices')
+    .join('') || 'AT'
+
+  const trainingItems = items.filter((item) => ['training', 'fitness', 'power'].includes(item.category))
+  const wellnessItems = items.filter((item) => ['wellness', 'calendar'].includes(item.category))
+  const dataItem = items.find((item) => item.category === 'device')
 
   const selectPage = (nextPage: PageId) => {
     onNavigate(nextPage)
@@ -552,13 +520,13 @@ function OpenFitSidebar({
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" className="sidebar-workspace" tooltip="OpenFit" onClick={() => selectPage('today')}>
+            <SidebarMenuButton size="lg" className="sidebar-workspace" tooltip="OpenFit ICU" onClick={() => selectPage('today')}>
               <span className="sidebar-workspace-mark">
                 <img src="./app-icon.png" alt="" aria-hidden="true" />
               </span>
               <span className="sidebar-workspace-copy">
-                <strong>OpenFit</strong>
-                <small>Health dashboard</small>
+                <strong>OpenFit ICU</strong>
+                <small>Training dashboard</small>
               </span>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -567,20 +535,38 @@ function OpenFitSidebar({
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Wellbeing</SidebarGroupLabel>
+          <SidebarGroupLabel>Training</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu aria-label="Main navigation">
-              {wellbeingItems.map(({ id, label, icon: Icon, category }) => (
+            <SidebarMenu aria-label="Training navigation">
+              {items.filter((i) => i.id === 'today').map(({ id, label, icon: Icon }) => (
                 <SidebarMenuItem key={id}>
-                  <SidebarMenuButton
-                    data-category={category}
-                    isActive={page === id}
-                    tooltip={label}
-                    aria-current={page === id ? 'page' : undefined}
-                    onClick={() => selectPage(id)}
-                  >
-                    <Icon aria-hidden="true" />
-                    <span>{label}</span>
+                  <SidebarMenuButton isActive={page === id} tooltip={label} aria-current={page === id ? 'page' : undefined}
+                    onClick={() => selectPage(id)}>
+                    <Icon aria-hidden="true" /><span>{label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+              {trainingItems.map(({ id, label, icon: Icon }) => (
+                <SidebarMenuItem key={id}>
+                  <SidebarMenuButton isActive={page === id} tooltip={label} aria-current={page === id ? 'page' : undefined}
+                    onClick={() => selectPage(id)}>
+                    <Icon aria-hidden="true" /><span>{label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Wellness</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {wellnessItems.map(({ id, label, icon: Icon }) => (
+                <SidebarMenuItem key={id}>
+                  <SidebarMenuButton isActive={page === id} tooltip={label} aria-current={page === id ? 'page' : undefined}
+                    onClick={() => selectPage(id)}>
+                    <Icon aria-hidden="true" /><span>{label}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -594,22 +580,15 @@ function OpenFitSidebar({
             <SidebarMenu>
               {dataItem && (
                 <SidebarMenuItem>
-                  <SidebarMenuButton
-                    data-category={dataItem.category}
-                    isActive={page === dataItem.id}
-                    tooltip={dataItem.label}
-                    aria-current={page === dataItem.id ? 'page' : undefined}
-                    onClick={() => selectPage(dataItem.id)}
-                  >
-                    <dataItem.icon aria-hidden="true" />
-                    <span>{dataItem.label}</span>
+                  <SidebarMenuButton isActive={page === dataItem.id} tooltip={dataItem.label}
+                    aria-current={page === dataItem.id ? 'page' : undefined} onClick={() => selectPage(dataItem.id)}>
+                    <dataItem.icon aria-hidden="true" /><span>{dataItem.label}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
               <SidebarMenuItem>
                 <SidebarMenuButton tooltip="Settings" onClick={openSettings}>
-                  <SettingsIcon />
-                  <span>Settings</span>
+                  <SettingsIcon /><span>Settings</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -642,122 +621,55 @@ function OpenFitSidebar({
 function SettingsDialog({
   open,
   status,
-  connecting,
+  dataSource,
   onOpenChange,
-  onSave,
   onConnect,
-  onExport,
   onDisconnect,
 }: {
   open: boolean
-  status: FitbitAuthStatus
-  connecting: boolean
+  status: AuthStatus
+  dataSource: DashboardData['source']
   onOpenChange: (open: boolean) => void
-  onSave: (config: FitbitConfigInput) => Promise<void>
-  onConnect: () => Promise<void>
-  onExport: () => Promise<void>
-  onDisconnect: () => Promise<void>
+  onConnect: () => void
+  onDisconnect: () => void
 }) {
-  const [clientId, setClientId] = useState(status.clientId)
-  const [clientSecret, setClientSecret] = useState('')
-  const [redirectUri, setRedirectUri] = useState(status.redirectUri)
-  const [provider, setProvider] = useState<HealthProvider>(status.provider)
-  const [editing, setEditing] = useState(!status.configured)
-
-  useEffect(() => {
-    if (!open) return
-    setClientId(status.clientId)
-    setRedirectUri(status.redirectUri)
-    setProvider(status.provider)
-    setClientSecret('')
-    setEditing(!status.configured)
-  }, [open, status])
-
-  const secretRequired = provider === 'google-health'
-  const providerLabel = provider === 'google-health' ? 'Google Health' : 'Fitbit legacy'
-  const savedSecretMatchesProvider = status.hasClientSecret && status.provider === provider
-  const canSave = status.storageEncrypted
-    && clientId.trim().length > 2
-    && (!secretRequired || clientSecret.trim().length > 4 || savedSecretMatchesProvider)
-    && redirectUri.startsWith('http://127.0.0.1:')
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    if (!canSave) return
-    void onSave({
-      provider,
-      clientId: clientId.trim(),
-      clientSecret: clientSecret.trim() || undefined,
-      redirectUri: redirectUri.trim(),
-    })
-  }
-
-  const openDeveloperPortal = () => {
-    const url = provider === 'google-health'
-      ? 'https://console.cloud.google.com/apis/library/health.googleapis.com'
-      : 'https://dev.fitbit.com/apps/new'
-    if (window.fitbit) void window.fitbit.openExternal(url)
-    else window.open(url, '_blank', 'noopener,noreferrer')
-  }
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="settings-dialog" showCloseButton>
         <DialogHeader>
           <div className="dialog-icon"><CloudIcon /></div>
-          <DialogTitle>{status.connected && !editing ? `${providerLabel} connected` : `Connect ${providerLabel}`}</DialogTitle>
-          <DialogDescription>Your credentials and data remain encrypted on this computer.</DialogDescription>
+          <DialogTitle>{status.connected ? 'Intervals.icu connected' : 'Connect Intervals.icu'}</DialogTitle>
+          <DialogDescription>Your data is fetched directly from Intervals.icu. No data is stored on our servers.</DialogDescription>
         </DialogHeader>
 
-        {status.connected && !editing ? (
+        {status.connected ? (
           <div className="connected-state">
             <div className="connection-check"><CheckIcon /></div>
-            <div><h3>Sync active</h3><p>Last updated {relativeTime(status.lastSyncAt)}.</p></div>
+            <div>
+              <h3>Sync active</h3>
+              <p>{status.athleteName ? `Connected as ${status.athleteName}` : ''}</p>
+              {status.lastSyncAt && <p>Last updated {relativeTime(status.lastSyncAt)}.</p>}
+            </div>
             <div className="connected-actions">
-              <Button onClick={onConnect} disabled={connecting}>{connecting ? <LoaderCircle className="spin" /> : <RefreshCw />} Reauthorize</Button>
-              <Button variant="outline" onClick={() => setEditing(true)}><SettingsIcon /> Edit configuration</Button>
-              <Button variant="outline" onClick={() => void onExport()}><ExportIcon /> Export data</Button>
-              <Button variant="destructive" onClick={() => void onDisconnect()}><DisconnectIcon /> Disconnect and delete local data</Button>
+              <Button variant="destructive" onClick={() => void onDisconnect()}><DisconnectIcon /> Disconnect</Button>
             </div>
           </div>
-        ) : (
-          <form onSubmit={submit} className="settings-form">
-            <div className="provider-picker" role="radiogroup" aria-label="Health provider">
-              <label className={cn(provider === 'google-health' && 'active')}>
-                <input className="sr-only" type="radio" name="health-provider" value="google-health" checked={provider === 'google-health'} onChange={() => setProvider('google-health')} />
-                <CloudIcon /><span><strong>Google Health</strong><small>API v4 · recommended</small></span>{provider === 'google-health' && <CheckIcon />}
-              </label>
-              <label className={cn(provider === 'fitbit-legacy' && 'active')}>
-                <input className="sr-only" type="radio" name="health-provider" value="fitbit-legacy" checked={provider === 'fitbit-legacy'} onChange={() => setProvider('fitbit-legacy')} />
-                <DeviceIcon /><span><strong>Fitbit legacy</strong><small>Temporary compatibility</small></span>{provider === 'fitbit-legacy' && <CheckIcon />}
-              </label>
+        ) : dataSource === 'demo' ? (
+          <div className="connected-state">
+            <div>
+              <h3>Demo mode</h3>
+              <p>Connect your Intervals.icu account to see real training data.</p>
+              <ol className="settings-steps">
+                <li>Create an OAuth app in your Intervals.icu account settings</li>
+                <li>Set the redirect URI to your app's callback URL</li>
+                <li>Click Connect to authorize</li>
+              </ol>
             </div>
-
-            <div className="form-field">
-              <Label htmlFor="client-id">OAuth Client ID</Label>
-              <Input id="client-id" value={clientId} onChange={(event) => setClientId(event.target.value)} autoComplete="off" />
+            <div className="connected-actions">
+              <Button onClick={onConnect}><CloudIcon /> Connect Intervals.icu</Button>
             </div>
-            {secretRequired && (
-              <div className="form-field">
-                <Label htmlFor="client-secret">Client Secret {savedSecretMatchesProvider && <span>· leave blank to keep the current one</span>}</Label>
-                <Input id="client-secret" type="password" value={clientSecret} onChange={(event) => setClientSecret(event.target.value)} placeholder={savedSecretMatchesProvider ? '••••••••••••' : ''} autoComplete="new-password" />
-              </div>
-            )}
-            <div className="form-field">
-              <Label htmlFor="callback-url">Callback URL</Label>
-              <Input id="callback-url" value={redirectUri} onChange={(event) => setRedirectUri(event.target.value)} spellCheck={false} />
-              <p>It must exactly match the URL configured in Google Cloud.</p>
-            </div>
-
-            <button type="button" className="portal-link" onClick={openDeveloperPortal}>Open developer console <ExternalIcon /></button>
-            <div className="scope-note"><ShieldIcon /><p>Read-only permissions for activity, heart, sleep, and authorized measurements.</p></div>
-
-            <DialogFooter className="settings-footer">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button type="submit" disabled={!canSave || connecting}>{connecting ? <LoaderIcon className="spin" /> : <CloudIcon />} Save and connect</Button>
-            </DialogFooter>
-          </form>
-        )}
+          </div>
+        ) : null}
       </DialogContent>
     </Dialog>
   )
