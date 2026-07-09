@@ -1,9 +1,11 @@
 import type { KeyboardEvent, ReactNode } from 'react'
+import { useState } from 'react'
 import { Card, CardAction, CardHeader } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/format'
+import { toCSV, toJSON, downloadFile } from '@/lib/export'
 import type { AppIcon } from './icons'
-import { ChevronDownIcon, ChevronUpIcon, MinusIcon } from './icons'
+import { ChevronDownIcon, ChevronUpIcon, ExportIcon, MinusIcon } from './icons'
 import { BulletChart } from './Charts'
 
 interface PanelProps {
@@ -132,4 +134,65 @@ export function Delta({ value, suffix = ' vs. previous period' }: { value: numbe
 
 export function EmptyValue({ children = 'Not available for this device or day.' }: { children?: ReactNode }) {
   return <div className="empty-value">{children}</div>
+}
+
+export function ExportButton<T extends Record<string, unknown>>({
+  data,
+  fields,
+  filename,
+}: {
+  data: T[]
+  fields: (keyof T)[]
+  filename: string
+}) {
+  const [open, setOpen] = useState(false)
+
+  const handleExport = (format: 'csv' | 'json') => {
+    const content = format === 'csv' ? toCSV(data, fields) : toJSON(data)
+    const mime = format === 'csv' ? 'text/csv' : 'application/json'
+    downloadFile(content, `${filename}.${format}`, mime)
+    setOpen(false)
+  }
+
+  return (
+    <div className="export-dropdown" style={{ position: 'relative' }}>
+      <button
+        type="button"
+        className="export-btn"
+        onClick={() => setOpen(!open)}
+        aria-label="Export data"
+        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+      >
+        <ExportIcon style={{ width: 16, height: 16 }} />
+      </button>
+      {open && (
+        <div className="export-menu" style={{ position: 'absolute', right: 0, top: '100%', zIndex: 10, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 6, padding: 4, minWidth: 140 }}>
+          <button type="button" onClick={() => handleExport('csv')} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 10px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 4, fontSize: 13 }}>Download CSV</button>
+          <button type="button" onClick={() => handleExport('json')} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 10px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 4, fontSize: 13 }}>Download JSON</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function SportFilter({
+  sports,
+  selected,
+  onChange,
+}: {
+  sports: string[]
+  selected: string
+  onChange: (sport: string) => void
+}) {
+  return (
+    <select
+      value={selected}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label="Filter by sport"
+      style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', fontSize: 13, cursor: 'pointer' }}
+    >
+      <option value="all">All sports</option>
+      {sports.map((s) => <option key={s} value={s}>{s}</option>)}
+    </select>
+  )
 }

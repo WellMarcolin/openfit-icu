@@ -160,7 +160,7 @@ export function normalizeIntervalsIcuData(payload: IntervalsIcuPayload): Dashboa
       eftp: null,
       restingHR: numeric(athlete.icu_resting_hr),
       timezone: athlete.timezone ? String(athlete.timezone) : null,
-      sports: ['Ride', 'Run'],
+      sports: [...new Set(activities.map(a => a.type))],
     },
     fitness: {
       ctl: latestWellness.ctl ?? null,

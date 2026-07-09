@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react'
+import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import type { ActivityItem, DashboardData, AuthStatus, PageId } from '@/types'
 import { ColumnChart, LineChart } from './Charts'
-import { DuoIcon, EmptyValue, MetricTile, Panel, PanelHeader } from './Shared'
+import { DuoIcon, EmptyValue, ExportButton, MetricTile, Panel, PanelHeader, SportFilter } from './Shared'
 import type { AppIcon } from './icons'
+import { getSportIcon } from './icons'
 import {
   ActivityIcon,
   BodyIcon,
@@ -62,6 +64,7 @@ function CompactActivity({ item, detailed = false }: { item: ActivityItem; detai
   const durationMinutes = Math.round(item.movingTime / 60)
   const distanceKm = item.distance
   const pace = item.distance && item.distance > 0 ? formatPace(item.movingTime / (item.distance * 1000)) : null
+  const SportIcon = getSportIcon(item.type)
   const zoneDetails = item.hrZoneTimes
     ? item.hrZoneTimes
       .map((minutes, index) => {
@@ -73,7 +76,7 @@ function CompactActivity({ item, detailed = false }: { item: ActivityItem; detai
     : []
   return (
     <div className={`activity-row ${detailed ? 'is-detailed' : ''}`}>
-      <DuoIcon icon={ActivityIcon} className="activity-icon" />
+      <DuoIcon icon={SportIcon} className="activity-icon" />
       <div className="activity-copy">
         <strong>{item.name}</strong>
         <span>{formatDate(item.startDate, { day: 'numeric', month: 'short' })}</span>
@@ -243,6 +246,7 @@ function VitalSnapshot({
 }
 
 export function TodayView({ data, navigate }: ViewProps) {
+  const [sportFilter, setSportFilter] = useState('all')
   const analysis = analyzeHome(data)
   const hasFitness = hasValue(data.fitness.ctl) || hasValue(data.fitness.atl) || hasValue(data.fitness.tsb)
   const hasLoad = hasValue(data.activity.todayLoad)
@@ -254,6 +258,8 @@ export function TodayView({ data, navigate }: ViewProps) {
   const restingHRTrend = data.trends.map((point) => point.restingHR)
   const sleepTrend = data.trends.map((point) => point.sleepMinutes)
   const hasAnyData = hasFitness || hasLoad || hasWellness || data.activities.length > 0
+  const uniqueSports = [...new Set(data.activities.map(a => a.type))]
+  const filteredActivities = sportFilter === 'all' ? data.activities : data.activities.filter(a => a.type === sportFilter)
 
   const vitalSnapshots = [
     hasValue(data.wellness.hrv) ? { id: 'hrv', label: 'HRV', value: `${formatNumber(data.wellness.hrv)} ms` } : null,
@@ -339,8 +345,18 @@ export function TodayView({ data, navigate }: ViewProps) {
           {data.activities.length > 0 && (
             <HomeSection id="activities" title="Recent activities">
               <Panel className="home-activities-card activity-panel" category="activity">
-                <PanelHeader title="Activities" icon={ActivityIcon} action={<DetailAction label="Open all activities" onClick={() => navigate('activity')} />} />
-                {data.activities.slice(0, 3).map((item, index) => <div key={item.id}>{index > 0 && <Separator />}<CompactActivity item={item} /></div>)}
+                <PanelHeader
+                  title="Activities"
+                  icon={ActivityIcon}
+                  action={
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      {uniqueSports.length > 1 && <SportFilter sports={uniqueSports} selected={sportFilter} onChange={setSportFilter} />}
+                      <DetailAction label="Open all activities" onClick={() => navigate('activity')} />
+                    </div>
+                  }
+                />
+                {filteredActivities.slice(0, 3).map((item, index) => <div key={item.id}>{index > 0 && <Separator />}<CompactActivity item={item} /></div>)}
+                {!filteredActivities.length && <EmptyValue>No activities for this sport.</EmptyValue>}
               </Panel>
             </HomeSection>
           )}
@@ -351,6 +367,10 @@ export function TodayView({ data, navigate }: ViewProps) {
 }
 
 export function ActivityView({ data }: ViewProps) {
+  const [sportFilter, setSportFilter] = useState('all')
+  const uniqueSports = [...new Set(data.activities.map(a => a.type))]
+  const filteredActivities = sportFilter === 'all' ? data.activities : data.activities.filter(a => a.type === sportFilter)
+
   return (
     <div className="page-stack activity-page">
       <div className="metric-grid activity-primary-metrics">
@@ -369,10 +389,23 @@ export function ActivityView({ data }: ViewProps) {
       </div>
 
       <section>
-        <SectionTitle title="Activities" copy={`${data.activities.length} activities in the synced period`} />
+        <SectionTitle
+          title="Activities"
+          copy={`${filteredActivities.length} activities in the synced period`}
+          action={
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {uniqueSports.length > 1 && <SportFilter sports={uniqueSports} selected={sportFilter} onChange={setSportFilter} />}
+              <ExportButton
+                data={filteredActivities as unknown as Record<string, unknown>[]}
+                fields={['name', 'type', 'startDate', 'movingTime', 'distance', 'trainingLoad', 'avgPower', 'avgHeartRate', 'intensity']}
+                filename={`activities-${data.selectedDate}`}
+              />
+            </div>
+          }
+        />
         <Panel className="activity-panel full-list" category="activity">
-          {data.activities.map((item, index) => <div key={item.id}>{index > 0 && <Separator />}<CompactActivity item={item} detailed /></div>)}
-          {!data.activities.length && <EmptyValue>No workouts recorded during this period.</EmptyValue>}
+          {filteredActivities.map((item, index) => <div key={item.id}>{index > 0 && <Separator />}<CompactActivity item={item} detailed /></div>)}
+          {!filteredActivities.length && <EmptyValue>No workouts recorded for this filter.</EmptyValue>}
         </Panel>
       </section>
 
@@ -439,7 +472,18 @@ export function PowerView({ data }: ViewProps) {
 
           {power.curves.length > 0 && (
             <Panel className="chart-panel power-curve-panel" category="power">
-              <PanelHeader eyebrow={`${power.curves.length} duration points`} title="Power Curve" icon={ActivityIcon} />
+              <PanelHeader
+                eyebrow={`${power.curves.length} duration points`}
+                title="Power Curve"
+                icon={ActivityIcon}
+                action={
+                  <ExportButton
+                    data={power.curves as unknown as Record<string, unknown>[]}
+                    fields={['secs', 'watts', 'wattsPerKg']}
+                    filename={`power-curves-${data.selectedDate}`}
+                  />
+                }
+              />
               <LineChart
                 values={power.curves.map(p => p.watts)}
                 labels={power.curves.map(p => {
@@ -486,7 +530,17 @@ export function WellnessView({ data }: ViewProps) {
           </div>
 
           <Panel className="wellness-detail-panel" category="wellness">
-            <PanelHeader title="Daily wellness" icon={HeartIcon} />
+            <PanelHeader
+              title="Daily wellness"
+              icon={HeartIcon}
+              action={
+                <ExportButton
+                  data={data.trends as unknown as Record<string, unknown>[]}
+                  fields={['date', 'restingHR', 'hrv', 'sleepMinutes', 'sleepScore', 'mood', 'stress', 'fatigue', 'readiness', 'weight']}
+                  filename={`wellness-${data.selectedDate}`}
+                />
+              }
+            />
             <div className="wellness-grid">
               {w.sleepScore !== null && <div className="wellness-item"><span>Sleep score</span><strong>{w.sleepScore}</strong></div>}
               {w.sleepQuality !== null && <div className="wellness-item"><span>Sleep quality</span><strong>{w.sleepQuality}/5</strong></div>}
@@ -516,17 +570,32 @@ export function WellnessView({ data }: ViewProps) {
 }
 
 export function CalendarView({ data }: ViewProps) {
+  const [sportFilter, setSportFilter] = useState('all')
   const events = data.events ?? []
-  const upcoming = events.filter(e => e.startDate >= data.selectedDate)
+  const uniqueSports = [...new Set(events.map(e => e.type))]
+  const filteredEvents = sportFilter === 'all' ? events : events.filter(e => e.type === sportFilter)
   const hasEvents = events.length > 0
 
   return (
     <div className="page-stack calendar-page">
       {hasEvents && (
         <>
-          <SectionTitle title="Training calendar" copy={`${events.length} events in range`} />
+          <SectionTitle
+            title="Training calendar"
+            copy={`${filteredEvents.length} events in range`}
+            action={
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {uniqueSports.length > 1 && <SportFilter sports={uniqueSports} selected={sportFilter} onChange={setSportFilter} />}
+                <ExportButton
+                  data={filteredEvents as unknown as Record<string, unknown>[]}
+                  fields={['startDate', 'name', 'type', 'category', 'movingTime', 'trainingLoad', 'indoor']}
+                  filename={`events-${data.selectedDate}`}
+                />
+              </div>
+            }
+          />
           <Panel className="calendar-events-panel" category="calendar">
-            {events.map((event, index) => (
+            {filteredEvents.map((event, index) => (
               <div key={event.id}>
                 {index > 0 && <Separator />}
                 <div className="calendar-event-row">
