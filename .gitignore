@@ -11,3 +11,4 @@ screenshots/
 .env.*.local
 .superpowers/
 .playwright-mcp/
+.worktrees/
