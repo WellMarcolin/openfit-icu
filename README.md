@@ -55,7 +55,6 @@ cp .env.example .env
 # Edit .env with your configuration
 # - Intervals.icu OAuth credentials
 # - OpenCode Server URL
-# - Vercel KV (for token storage)
 
 # Start development server
 npm run dev
@@ -71,11 +70,6 @@ INTERVALS_ICU_REDIRECT_URI=https://your-app.vercel.app/api/auth/callback
 
 # Intervals.icu API (alternative to OAuth)
 INTERVALS_ICU_API_KEY=your_api_key
-
-# Vercel KV (for token storage)
-VERCEL_KV_REST_API_URL=your_kv_url
-VERCEL_KV_REST_API_TOKEN=your_kv_token
-VERCEL_KV_ENCRYPTION_KEY=your_encryption_key
 
 # OpenCode Server
 OPENCODE_SERVER_URL=http://localhost:4096
@@ -97,16 +91,16 @@ openfit-icu/
     assistant/            # OpenCode AI bridge
   src/
     components/
-      Views/              # Dashboard views (Today, Activity, Fitness, etc.)
-      Charts/             # Custom chart components
-      Shared/             # Reusable UI components
+      Views.tsx           # Dashboard views (Today, Activity, Fitness, etc.)
+      Charts.tsx          # Custom chart components
+      Shared.tsx          # Reusable UI components
       HealthAssistant.tsx # AI chat panel
     data/
       demo.ts             # Demo data generator
       normalize.ts        # Data normalizer
-    lib/
-      intervals-icu.ts    # Intervals.icu API client
-      opencode-client.ts  # OpenCode SDK wrapper
+  lib/
+    intervals-icu.ts    # Intervals.icu API client (at api/lib/intervals-icu.ts)
+    opencode-client.ts  # OpenCode SDK wrapper (at api/lib/opencode-client.ts)
     types.ts              # TypeScript types
   prompts/
     health-assistant.txt  # AI system prompt
