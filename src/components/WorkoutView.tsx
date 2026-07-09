@@ -4,10 +4,12 @@ import { Separator } from '@/components/ui/separator'
 import { DuoIcon, EmptyValue, Panel, PanelHeader } from './Shared'
 import { ActivityIcon, TrashIcon } from './icons'
 import { WorkoutDialog, type WorkoutItem, type WorkoutFormData } from './Workouts/WorkoutDialog'
+import { ScheduleDialog } from './Workouts/ScheduleDialog'
 import type { DashboardData, AuthStatus, PageId } from '@/types'
 import { getSportIcon } from './icons'
 import { compactMinutes } from '@/lib/format'
 import { hasActivityData } from '@/lib/data-availability'
+import { buildWorkoutDoc } from '@/lib/workout-builder'
 
 interface WorkoutViewProps {
   data: DashboardData
@@ -21,6 +23,8 @@ export function WorkoutView({ data, status }: WorkoutViewProps) {
   const [editing, setEditing] = useState<WorkoutItem | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [scheduling, setScheduling] = useState<WorkoutItem | null>(null)
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false)
 
   useEffect(() => {
     fetchWorkouts()
@@ -40,13 +44,16 @@ export function WorkoutView({ data, status }: WorkoutViewProps) {
   }
 
   const handleSave = async (form: WorkoutFormData) => {
-    const body = {
+    const body: Record<string, unknown> = {
       name: form.name,
       workout_type: form.type,
       description: form.description || undefined,
       moving_time: form.movingTime,
       indoor: form.indoor,
       tags: form.tags ? form.tags.split(',').map((t) => t.trim()).filter(Boolean) : undefined,
+    }
+    if (form.steps?.length) {
+      body.workout_doc = buildWorkoutDoc(form.steps)
     }
 
     try {
@@ -87,6 +94,26 @@ export function WorkoutView({ data, status }: WorkoutViewProps) {
     setDeletingId(null)
   }
 
+  const handleSchedule = async (date: string) => {
+    if (!scheduling) return
+    try {
+      const res = await fetch('/api/data/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: scheduling.name,
+          workout_type: scheduling.type,
+          start_date: date,
+        }),
+      })
+      if (!res.ok) return
+      setScheduling(null)
+      setScheduleDialogOpen(false)
+    } catch {
+      // silently fail
+    }
+  }
+
   return (
     <div className="page-stack workouts-page">
       <WorkoutDialog
@@ -123,6 +150,13 @@ export function WorkoutView({ data, status }: WorkoutViewProps) {
                       ) : (
                         <Button variant="ghost" size="icon-xs" onClick={() => setDeletingId(workout.id)} aria-label="Delete workout"><TrashIcon /></Button>
                       )}
+                      <ScheduleDialog
+                        workoutName={workout.name}
+                        onSchedule={handleSchedule}
+                        open={scheduleDialogOpen && scheduling?.id === workout.id}
+                        onOpenChange={(open) => { setScheduleDialogOpen(open); if (!open) setScheduling(null) }}
+                        trigger={<Button variant="ghost" size="icon-xs" onClick={() => { setScheduling(workout); setScheduleDialogOpen(true) }} aria-label="Schedule workout">📅</Button>}
+                      />
                     </div>
                   </div>
                 </div>
