@@ -144,5 +144,6 @@ function mapWorkoutFromICU(raw: Record<string, unknown>): WorkoutItem {
     movingTime: (raw.moving_time ?? raw.movingTime ?? null) as number | null,
     indoor: Boolean(raw.indoor ?? false),
     tags: Array.isArray(raw.tags) ? (raw.tags as string[]) : [],
+    workout_doc: (raw.workout_doc ?? null) as Record<string, unknown> | null,
   }
 }
