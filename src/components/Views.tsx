@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import type { ActivityItem, DashboardData, AuthStatus, PageId } from '@/types'
+import type { ActivityItem, CalendarEvent, DashboardData, AuthStatus, PageId } from '@/types'
 import { ColumnChart, LineChart } from './Charts'
 import { DuoIcon, EmptyValue, ExportButton, MetricTile, Panel, PanelHeader, SportFilter } from './Shared'
 import type { AppIcon } from './icons'
@@ -19,6 +19,9 @@ import {
   StepsIcon,
   TrendIcon,
 } from './icons'
+import { Button } from '@/components/ui/button'
+import { EventDialog } from './Events/EventDialog'
+import type { EventFormData } from './Events/EventDialog'
 import {
   compactMinutes,
   formatDate,
@@ -30,6 +33,7 @@ import {
 import { hasActivityData } from '@/lib/data-availability'
 import { analyzeHome } from '@/lib/home-analysis'
 import type { BaselineComparison } from '@/lib/home-analysis'
+import { TrashIcon } from './icons'
 
 interface ViewProps {
   data: DashboardData
@@ -571,29 +575,87 @@ export function WellnessView({ data }: ViewProps) {
 
 export function CalendarView({ data }: ViewProps) {
   const [sportFilter, setSportFilter] = useState('all')
-  const events = data.events ?? []
-  const uniqueSports = [...new Set(events.map(e => e.type))]
-  const filteredEvents = sportFilter === 'all' ? events : events.filter(e => e.type === sportFilter)
-  const hasEvents = events.length > 0
+  const [localEvents, setLocalEvents] = useState(data.events ?? [])
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+
+  const uniqueSports = [...new Set(localEvents.map(e => e.type))]
+  const filteredEvents = sportFilter === 'all' ? localEvents : localEvents.filter(e => e.type === sportFilter)
+  const hasEvents = localEvents.length > 0
+
+  const handleSave = async (form: EventFormData) => {
+    try {
+      const body = {
+        name: form.name,
+        start_date: form.startDate,
+        type: form.type,
+        category: form.category,
+        moving_time: form.movingTime,
+        description: form.description || undefined,
+        indoor: form.indoor,
+      }
+
+      if (editingEvent) {
+        const res = await fetch(`/api/data/events/${editingEvent.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        if (!res.ok) return
+        const updated = await res.json()
+        setLocalEvents((prev) => prev.map((e) => (e.id === editingEvent.id ? { ...e, ...mapEventFromICU(updated) } : e)))
+      } else {
+        const res = await fetch('/api/data/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        if (!res.ok) return
+        const created = await res.json()
+        setLocalEvents((prev) => [...prev, mapEventFromICU(created)])
+      }
+
+      setEditingEvent(null)
+      setDialogOpen(false)
+    } catch {
+      // silently fail
+    }
+  }
+
+  const handleDelete = async (id: number) => {
+    try {
+      const res = await fetch(`/api/data/events/${id}`, { method: 'DELETE' })
+      if (!res.ok) return
+      setLocalEvents((prev) => prev.filter((e) => e.id !== id))
+    } catch {
+      // silently fail
+    }
+    setDeletingId(null)
+  }
 
   return (
     <div className="page-stack calendar-page">
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+        <EventDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          onSave={handleSave}
+          event={editingEvent}
+          trigger={<Button size="sm">+ Add event</Button>}
+        />
+        {uniqueSports.length > 1 && <SportFilter sports={uniqueSports} selected={sportFilter} onChange={setSportFilter} />}
+      </div>
+
       {hasEvents && (
         <>
-          <SectionTitle
-            title="Training calendar"
-            copy={`${filteredEvents.length} events in range`}
-            action={
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                {uniqueSports.length > 1 && <SportFilter sports={uniqueSports} selected={sportFilter} onChange={setSportFilter} />}
-                <ExportButton
-                  data={filteredEvents as unknown as Record<string, unknown>[]}
-                  fields={['startDate', 'name', 'type', 'category', 'movingTime', 'trainingLoad', 'indoor']}
-                  filename={`events-${data.selectedDate}`}
-                />
-              </div>
-            }
-          />
+          <SectionTitle title="Training calendar" copy={`${filteredEvents.length} events in range`} action={
+            <ExportButton
+              data={filteredEvents as unknown as Record<string, unknown>[]}
+              fields={['startDate', 'name', 'type', 'category', 'movingTime', 'trainingLoad', 'indoor']}
+              filename={`events-${data.selectedDate}`}
+            />
+          } />
           <Panel className="calendar-events-panel" category="calendar">
             {filteredEvents.map((event, index) => (
               <div key={event.id}>
@@ -613,6 +675,28 @@ export function CalendarView({ data }: ViewProps) {
                     {event.trainingLoad && <span>{event.trainingLoad} TSS</span>}
                     {event.indoor && <small>Indoor</small>}
                   </div>
+                  <div className="calendar-event-actions" style={{ display: 'flex', gap: 4, marginLeft: 8 }}>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => { setEditingEvent(event); setDialogOpen(true) }}
+                      aria-label="Edit event"
+                    >
+                      &hellip;
+                    </Button>
+                    {deletingId === event.id ? (
+                      <Button variant="destructive" size="xs" onClick={() => handleDelete(event.id)}>Confirm</Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() => setDeletingId(event.id)}
+                        aria-label="Delete event"
+                      >
+                        <TrashIcon />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -622,6 +706,20 @@ export function CalendarView({ data }: ViewProps) {
       {!hasEvents && <EmptyValue>No events in your calendar.</EmptyValue>}
     </div>
   )
+}
+
+function mapEventFromICU(raw: Record<string, unknown>): CalendarEvent {
+  return {
+    id: raw.id as number,
+    startDate: (raw.start_date_local ?? raw.startDate ?? '') as string,
+    name: raw.name as string,
+    type: (raw.type ?? 'Ride') as CalendarEvent['type'],
+    category: (raw.category ?? 'WORKOUT') as CalendarEvent['category'],
+    movingTime: (raw.moving_time ?? raw.movingTime ?? null) as number | null,
+    trainingLoad: (raw.icu_training_load ?? raw.trainingLoad ?? null) as number | null,
+    indoor: Boolean(raw.indoor ?? false),
+    description: (raw.description ?? null) as string | null,
+  }
 }
 
 export function DataSourcesView({ data, status }: ViewProps) {

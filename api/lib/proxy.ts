@@ -6,12 +6,21 @@ export function getAccessToken(req: VercelRequest): string | null {
   return req.cookies?.access_token ?? null
 }
 
-export async function proxyToIntervalsIcu(accessToken: string, path: string): Promise<Response> {
+export async function proxyToIntervalsIcu(
+  accessToken: string,
+  path: string,
+  options?: { method?: string; body?: unknown }
+): Promise<Response> {
+  const method = options?.method ?? 'GET'
+  const body = options?.body !== undefined ? JSON.stringify(options.body) : undefined
+
   return fetch(`${INTERVALS_ICU_BASE}${path}`, {
+    method,
     headers: {
       'Authorization': `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
+    body,
   })
 }
 
