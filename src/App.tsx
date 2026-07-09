@@ -32,6 +32,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { DashboardData, AuthStatus, PageId } from '@/types'
 import { createDemoData, localIso } from '@/data/demo'
+import { normalizeIntervalsIcuData, type IntervalsIcuPayload } from '@/data/normalize'
 import { formatDate, relativeTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { ActivityView, WellnessView, FitnessView, PowerView, CalendarView, DataSourcesView, TodayView } from '@/components/Views'
@@ -149,160 +150,40 @@ export default function App() {
       const [athleteRes, activitiesRes, wellnessRes, powerRes, eventsRes] = await Promise.all([
         fetch(`/api/data/athlete?id=${authStatus.athleteId || '0'}`).catch(() => null),
         fetch(`/api/data/activities?oldest=${date}&newest=${date}`).catch(() => null),
-        fetch(`/api/data/wellness?date=${date}`).catch(() => null),
+        fetch(`/api/data/wellness?oldest=${date}&newest=${date}`).catch(() => null),
         fetch(`/api/data/power-curves?type=Ride`).catch(() => null),
         fetch(`/api/data/events?oldest=${date}`).catch(() => null),
       ])
 
       const athlete = athleteRes?.ok ? await athleteRes.json() : null
       const activities = activitiesRes?.ok ? await activitiesRes.json() : []
-      const wellness = wellnessRes?.ok ? await wellnessRes.json() : null
-      const powerCurves = powerRes?.ok ? await powerRes.json() : null
+      const wellness = wellnessRes?.ok ? await wellnessRes.json() : []
+      const powerData = powerRes?.ok ? await powerRes.json() : null
+      const powerCurves = powerData?.curves ?? []
       const events = eventsRes?.ok ? await eventsRes.json() : []
 
-      setData({
-        source: 'intervals-icu',
-        selectedDate: date,
-        generatedAt: new Date().toISOString(),
-        profile: {
-          displayName: athlete ? `${athlete.firstname ?? ''} ${athlete.lastname ?? ''}`.trim() : 'Athlete',
-          avatar: null,
-          weight: athlete?.weight ?? athlete?.icu_weight ?? null,
-          height: athlete?.height ?? null,
-          ftp: null,
-          eftp: athlete?.eftp ?? null,
-          restingHR: athlete?.icu_resting_hr ?? null,
-          timezone: athlete?.timezone ?? null,
-          sports: ['Ride', 'Run'],
-        },
-        fitness: {
-          ctl: wellness?.ctl ?? null,
-          atl: wellness?.atl ?? null,
-          tsb: wellness?.ctl != null && wellness?.atl != null ? Number((wellness.ctl - wellness.atl).toFixed(1)) : null,
-          rampRate: wellness?.rampRate ?? null,
-          ctlHistory: wellness?.ctlHistory ?? [],
-          atlHistory: wellness?.atlHistory ?? [],
-          tsbHistory: wellness?.tsbHistory ?? [],
-        },
-        activity: {
-          todayLoad: activities.reduce?.((sum: number, a: any) => sum + (a.icu_training_load ?? 0), 0) ?? null,
-          todayActivities: (activities ?? []).map((a: any) => ({
-            id: String(a.id ?? ''),
-            name: String(a.name ?? ''),
-            type: String(a.type ?? 'Ride'),
-            startDate: String(a.start_date_local ?? ''),
-            movingTime: a.moving_time ?? 0,
-            distance: a.distance ? Number((a.distance / 1000).toFixed(2)) : null,
-            trainingLoad: a.icu_training_load ?? null,
-            ftp: a.icu_ftp ?? null,
-            intensity: a.icu_intensity ?? null,
-            avgPower: a.average_watts ?? null,
-            weightedAvgPower: a.icu_weighted_avg_watts ?? null,
-            avgHeartRate: a.average_heartrate ?? null,
-            maxHeartRate: a.max_heartrate ?? null,
-            avgCadence: a.average_cadence ?? null,
-            calories: a.calories ?? null,
-            elevationGain: a.total_elevation_gain ?? null,
-            trainer: Boolean(a.trainer),
-            race: Boolean(a.race),
-            tags: Array.isArray(a.tags) ? a.tags.map(String) : [],
-            source: String(a.source ?? ''),
-            compliance: a.compliance ?? null,
-            variabilityIndex: a.icu_variability_index ?? null,
-            efficiencyFactor: a.icu_efficiency_factor ?? null,
-            decoupling: a.decoupling ?? null,
-            polarizationIndex: a.polarization_index ?? null,
-            zoneTimes: Array.isArray(a.icu_zone_times) ? a.icu_zone_times : null,
-            hrZoneTimes: Array.isArray(a.icu_hr_zones) ? a.icu_hr_zones : null,
-          })),
-          weekLoad: null,
-          weekActivities: null,
-          avgIntensity: null,
-          zoneMinutes: null,
-        },
-        wellness: {
-          weight: wellness?.weight ?? null,
-          restingHR: wellness?.restingHR ?? null,
-          hrv: wellness?.hrv ?? null,
-          hrvSDNN: wellness?.hrvSDNN ?? null,
-          sleepMinutes: wellness?.sleepSecs ? Math.round(wellness.sleepSecs / 60) : null,
-          sleepScore: wellness?.sleepScore ?? null,
-          sleepQuality: wellness?.sleepQuality ?? null,
-          avgSleepingHR: wellness?.avgSleepingHR ?? null,
-          spO2: wellness?.spO2 ?? null,
-          mood: wellness?.mood ?? null,
-          stress: wellness?.stress ?? null,
-          fatigue: wellness?.fatigue ?? null,
-          motivation: wellness?.motivation ?? null,
-          soreness: wellness?.soreness ?? null,
-          readiness: wellness?.readiness ?? null,
-          vo2max: wellness?.vo2max ?? null,
-          bodyFat: wellness?.bodyFat ?? null,
-          systolic: wellness?.systolic ?? null,
-          diastolic: wellness?.diastolic ?? null,
-          hydration: wellness?.hydration ?? null,
-          kcalConsumed: wellness?.kcalConsumed ?? null,
-          respiration: wellness?.respiration ?? null,
-          steps: wellness?.steps ?? null,
-        },
-        power: {
-          curves: powerCurves?.curves ?? [],
-          seasonCurves: powerCurves?.seasonCurves ?? [],
-          ftp: null,
-          eftp: null,
-          vo2max5m: powerCurves?.vo2max_5m ?? null,
-          wkg5m: null,
-        },
-        trends: [],
-        activities: (activities ?? []).map((a: any) => ({
-          id: String(a.id ?? ''),
-          name: String(a.name ?? ''),
-          type: String(a.type ?? 'Ride'),
-          startDate: String(a.start_date_local ?? ''),
-          movingTime: a.moving_time ?? 0,
-          distance: a.distance ? Number((a.distance / 1000).toFixed(2)) : null,
-          trainingLoad: a.icu_training_load ?? null,
-          ftp: a.icu_ftp ?? null,
-          intensity: a.icu_intensity ?? null,
-          avgPower: a.average_watts ?? null,
-          weightedAvgPower: a.icu_weighted_avg_watts ?? null,
-          avgHeartRate: a.average_heartrate ?? null,
-          maxHeartRate: a.max_heartrate ?? null,
-          avgCadence: a.average_cadence ?? null,
-          calories: a.calories ?? null,
-          elevationGain: a.total_elevation_gain ?? null,
-          trainer: Boolean(a.trainer),
-          race: Boolean(a.race),
-          tags: Array.isArray(a.tags) ? a.tags.map(String) : [],
-          source: String(a.source ?? ''),
-          compliance: a.compliance ?? null,
-          variabilityIndex: a.icu_variability_index ?? null,
-          efficiencyFactor: a.icu_efficiency_factor ?? null,
-          decoupling: a.decoupling ?? null,
-          polarizationIndex: a.polarization_index ?? null,
-          zoneTimes: Array.isArray(a.icu_zone_times) ? a.icu_zone_times : null,
-          hrZoneTimes: Array.isArray(a.icu_hr_zones) ? a.icu_hr_zones : null,
-        })),
-        events: (events ?? []).map((e: any) => ({
-          id: e.id ?? 0,
-          startDate: String(e.start_date_local ?? ''),
-          name: String(e.name ?? ''),
-          type: String(e.type ?? 'Ride'),
-          category: e.category ?? 'WORKOUT',
-          movingTime: e.moving_time ?? null,
-          trainingLoad: e.icu_training_load ?? null,
-          indoor: Boolean(e.indoor),
-          description: e.description ? String(e.description) : null,
-        })),
-        insights: [],
-        sync: {
-          endpointCount: 5,
-          successCount: [athleteRes, activitiesRes, wellnessRes, powerRes, eventsRes].filter(r => r?.ok).length,
-          errors: [],
-          lastSyncAt: new Date().toISOString(),
-        },
-      })
+      const successCount = [athleteRes, activitiesRes, wellnessRes, powerRes, eventsRes]
+        .filter(r => r?.ok).length
 
+      const payload: IntervalsIcuPayload = {
+        athlete: athlete ?? undefined,
+        activities: Array.isArray(activities) ? activities : [],
+        wellness: Array.isArray(wellness) ? wellness : [],
+        powerCurves: Array.isArray(powerCurves) ? powerCurves : [],
+        events: Array.isArray(events) ? events : [],
+        date,
+        generatedAt: new Date().toISOString(),
+      }
+
+      const normalized = normalizeIntervalsIcuData(payload)
+      normalized.sync = {
+        endpointCount: 5,
+        successCount,
+        errors: [],
+        lastSyncAt: new Date().toISOString(),
+      }
+
+      setData(normalized)
       setStatus(prev => ({ ...prev, lastSyncAt: new Date().toISOString() }))
       setToast({ tone: 'success', message: 'Data updated from Intervals.icu.' })
     } catch (error) {

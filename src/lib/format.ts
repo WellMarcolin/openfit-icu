@@ -47,7 +47,7 @@ export function formatDate(value: string, options: Intl.DateTimeFormatOptions = 
 }
 
 export function relativeTime(value: string | null) {
-  if (!value) return 'Mai'
+  if (!value) return 'Never'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   const minutes = Math.round((Date.now() - date.getTime()) / 60_000)

@@ -10,3 +10,4 @@ screenshots/
 .env.local
 .env.*.local
 .superpowers/
+.playwright-mcp/

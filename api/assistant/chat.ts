@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { OpenCodeClient, type HealthContext } from '../../src/lib/opencode-client'
+import { OpenCodeClient, type HealthContext } from '../lib/opencode-client'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getAccessToken, proxyToIntervalsIcu } from '../lib/proxy'
+import { getValidAccessToken, proxyToIntervalsIcu } from '../lib/proxy'
 import { validateAthleteId } from '../lib/validation'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -7,7 +7,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const accessToken = getAccessToken(req)
+  const accessToken = await getValidAccessToken(req, res)
   if (!accessToken) {
     return res.status(401).json({ error: 'Not authenticated' })
   }
