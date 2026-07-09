@@ -22,6 +22,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { EventDialog } from './Events/EventDialog'
 import type { EventFormData } from './Events/EventDialog'
+import { WellnessDialog } from './Wellness/WellnessDialog'
+import type { WellnessFormData } from './Wellness/WellnessDialog'
 import {
   compactMinutes,
   formatDate,
@@ -39,6 +41,7 @@ interface ViewProps {
   data: DashboardData
   status: AuthStatus
   navigate: (page: PageId) => void
+  onDateChange?: (date: string) => void
 }
 
 function hasValue(value: number | null | undefined): value is number {
@@ -518,9 +521,35 @@ export function PowerView({ data }: ViewProps) {
   )
 }
 
-export function WellnessView({ data }: ViewProps) {
+export function WellnessView({ data, onDateChange }: ViewProps) {
   const w = data.wellness
   const hasWellness = w.hrv !== null || w.restingHR !== null || w.sleepMinutes !== null || w.readiness !== null
+  const [dialogOpen, setDialogOpen] = useState(false)
+
+  const buildInitialData = (): Partial<WellnessFormData> => {
+    const result: Partial<WellnessFormData> = { date: data.selectedDate }
+    for (const key of Object.keys(w) as Array<keyof typeof w>) {
+      if (w[key] !== null) {
+        (result as Record<string, unknown>)[key] = w[key]
+      }
+    }
+    return result
+  }
+
+  const handleSave = async (form: WellnessFormData) => {
+    try {
+      const res = await fetch('/api/data/wellness', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      if (!res.ok) return
+      setDialogOpen(false)
+      onDateChange?.(data.selectedDate)
+    } catch {
+      // silently fail
+    }
+  }
 
   return (
     <div className="page-stack wellness-page">
@@ -538,11 +567,21 @@ export function WellnessView({ data }: ViewProps) {
               title="Daily wellness"
               icon={HeartIcon}
               action={
-                <ExportButton
-                  data={data.trends as unknown as Record<string, unknown>[]}
-                  fields={['date', 'restingHR', 'hrv', 'sleepMinutes', 'sleepScore', 'mood', 'stress', 'fatigue', 'readiness', 'weight']}
-                  filename={`wellness-${data.selectedDate}`}
-                />
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <WellnessDialog
+                    date={data.selectedDate}
+                    initialData={buildInitialData()}
+                    onSave={handleSave}
+                    open={dialogOpen}
+                    onOpenChange={setDialogOpen}
+                    trigger={<Button variant="outline" size="sm">Edit</Button>}
+                  />
+                  <ExportButton
+                    data={data.trends as unknown as Record<string, unknown>[]}
+                    fields={['date', 'restingHR', 'hrv', 'sleepMinutes', 'sleepScore', 'mood', 'stress', 'fatigue', 'readiness', 'weight']}
+                    filename={`wellness-${data.selectedDate}`}
+                  />
+                </div>
               }
             />
             <div className="wellness-grid">
@@ -568,7 +607,18 @@ export function WellnessView({ data }: ViewProps) {
           </Panel>
         </>
       )}
-      {!hasWellness && <EmptyValue>No wellness data available for this day.</EmptyValue>}
+      {!hasWellness && (
+        <div style={{ textAlign: 'center', padding: '40px 0' }}>
+          <EmptyValue>No wellness data available for this day.</EmptyValue>
+          <div style={{ marginTop: 16 }}>
+            <WellnessDialog
+              date={data.selectedDate}
+              onSave={handleSave}
+              trigger={<Button>Add wellness entry</Button>}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -235,7 +235,7 @@ export default function App() {
   }
 
   const currentView = useMemo(() => {
-    const props = { data, status, navigate: setPage }
+    const props = { data, status, navigate: setPage, onDateChange: changeDate }
     if (page === 'activity') return <ActivityView {...props} />
     if (page === 'fitness') return <FitnessView {...props} />
     if (page === 'power') return <PowerView {...props} />
