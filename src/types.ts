@@ -213,3 +213,9 @@ export type HealthAssistantEvent =
   | { requestId: string; type: 'complete'; text?: string }
   | { requestId: string; type: 'error'; message: string }
   | { requestId: string; type: 'cancelled' }
+
+export interface AppSettings {
+  intervalsApiKey: string | null
+  opencodeServerUrl: string | null
+  opencodeUsername: string | null
+}
