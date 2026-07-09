@@ -36,6 +36,7 @@ import { normalizeIntervalsIcuData, type IntervalsIcuPayload } from '@/data/norm
 import { formatDate, relativeTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { ActivityView, WellnessView, FitnessView, PowerView, CalendarView, DataSourcesView, TodayView } from '@/components/Views'
+import { WorkoutView } from '@/components/WorkoutView'
 import { HealthAssistant } from '@/components/HealthAssistant'
 import type { AssistantNavigation } from '@/lib/health-assistant'
 import type { AppIcon } from '@/components/icons'
@@ -59,7 +60,7 @@ import {
   TodayIcon,
 } from '@/components/icons'
 
-type NavCategory = 'summary' | 'training' | 'fitness' | 'power' | 'wellness' | 'calendar' | 'device'
+type NavCategory = 'summary' | 'training' | 'fitness' | 'power' | 'wellness' | 'calendar' | 'library' | 'device'
 
 const navItems: Array<{ id: PageId; label: string; copy: string; icon: AppIcon; category: NavCategory }> = [
   { id: 'today', label: 'Today', copy: 'Training overview and fitness status.', icon: TodayIcon, category: 'summary' },
@@ -68,6 +69,7 @@ const navItems: Array<{ id: PageId; label: string; copy: string; icon: AppIcon; 
   { id: 'power', label: 'Power', copy: 'Power curves, FTP, and W/kg.', icon: ActivityIcon, category: 'power' },
   { id: 'wellness', label: 'Wellness', copy: 'HRV, sleep, mood, and readiness.', icon: HeartIcon, category: 'wellness' },
   { id: 'calendar', label: 'Calendar', copy: 'Training plan and upcoming events.', icon: CalendarIcon, category: 'calendar' },
+  { id: 'workouts', label: 'Workouts', copy: 'Workout library — create, edit, and manage routines.', icon: ActivityIcon, category: 'library' },
   { id: 'data-sources', label: 'Data', copy: 'Intervals.icu connection and settings.', icon: DeviceIcon, category: 'device' },
 ]
 
@@ -239,6 +241,7 @@ export default function App() {
     if (page === 'power') return <PowerView {...props} />
     if (page === 'wellness') return <WellnessView {...props} />
     if (page === 'calendar') return <CalendarView {...props} />
+    if (page === 'workouts') return <WorkoutView {...props} />
     if (page === 'data-sources') return <DataSourcesView {...props} />
     return <TodayView {...props} />
   }, [data, page, status])
@@ -384,7 +387,7 @@ function OpenFitIcuSidebar({
 
   const trainingItems = items.filter((item) => ['training', 'fitness', 'power'].includes(item.category))
   const wellnessItems = items.filter((item) => ['wellness', 'calendar'].includes(item.category))
-  const dataItem = items.find((item) => item.category === 'device')
+  const managementItems = items.filter((item) => ['library', 'device'].includes(item.category))
 
   const selectPage = (nextPage: PageId) => {
     onNavigate(nextPage)
@@ -458,15 +461,15 @@ function OpenFitIcuSidebar({
         <SidebarGroup>
           <SidebarGroupLabel>Management</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
-              {dataItem && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton isActive={page === dataItem.id} tooltip={dataItem.label}
-                    aria-current={page === dataItem.id ? 'page' : undefined} onClick={() => selectPage(dataItem.id)}>
-                    <dataItem.icon aria-hidden="true" /><span>{dataItem.label}</span>
+              <SidebarMenu>
+              {managementItems.map(({ id, label, icon: Icon }) => (
+                <SidebarMenuItem key={id}>
+                  <SidebarMenuButton isActive={page === id} tooltip={label}
+                    aria-current={page === id ? 'page' : undefined} onClick={() => selectPage(id)}>
+                    <Icon aria-hidden="true" /><span>{label}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-              )}
+              ))}
               <SidebarMenuItem>
                 <SidebarMenuButton tooltip="Settings" onClick={openSettings}>
                   <SettingsIcon /><span>Settings</span>

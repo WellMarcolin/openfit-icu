@@ -1,4 +1,4 @@
-export type PageId = 'today' | 'activity' | 'fitness' | 'power' | 'wellness' | 'calendar' | 'data-sources'
+export type PageId = 'today' | 'activity' | 'fitness' | 'power' | 'wellness' | 'calendar' | 'data-sources' | 'workouts'
 
 export type DataSource = 'demo' | 'intervals-icu' | 'cache'
 
