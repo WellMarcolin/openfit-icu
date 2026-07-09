@@ -68,10 +68,10 @@ INTERVALS_ICU_CLIENT_ID=your_client_id
 INTERVALS_ICU_CLIENT_SECRET=your_client_secret
 INTERVALS_ICU_REDIRECT_URI=https://your-app.vercel.app/api/auth/callback
 
-# Intervals.icu API (alternative to OAuth)
+# Intervals.icu API Key (alternative to OAuth — also configurable via Settings UI)
 INTERVALS_ICU_API_KEY=your_api_key
 
-# OpenCode Server
+# OpenCode Server (also configurable via Settings UI)
 OPENCODE_SERVER_URL=http://localhost:4096
 OPENCODE_SERVER_USERNAME=opencode
 OPENCODE_SERVER_PASSWORD=your_password
@@ -89,12 +89,14 @@ openfit-icu/
     auth/                 # OAuth endpoints
     data/                 # Intervals.icu API proxy
     assistant/            # OpenCode AI bridge
+    settings.ts           # Settings API (cookie-based config)
   src/
     components/
       Views.tsx           # Dashboard views (Today, Activity, Fitness, etc.)
       Charts.tsx          # Custom chart components
       Shared.tsx          # Reusable UI components
       HealthAssistant.tsx # AI chat panel
+      Settings/           # Settings dialog (Data Source + AI Assistant)
     data/
       demo.ts             # Demo data generator
       normalize.ts        # Data normalizer
@@ -160,6 +162,11 @@ npx serve dist
 - `POST /api/assistant/chat` - Send message
 - `POST /api/assistant/session` - Create session
 - `GET /api/assistant/stream` - SSE stream
+- `GET /api/assistant/config` - Check assistant availability
+
+### Settings
+- `GET /api/settings` - Read user config (cookies)
+- `POST /api/settings` - Save user config (httpOnly cookies)
 
 ## Customization
 
@@ -173,14 +180,16 @@ Configure dashboards via Settings > Dashboards in the UI.
 
 ## Roadmap
 
-- [ ] Write operations (create/edit workouts)
 - [ ] Multi-sport support
 - [ ] Comparison mode
-- [ ] Data export (CSV/JSON)
 - [ ] Notifications (FTP, best efforts)
 - [ ] Coach view (multi-athlete)
-- [ ] Workout builder
 - [ ] PWA offline mode
+- [x] Write operations (create/edit workouts + step builder + schedule)
+- [x] Workout builder
+- [x] Data export (CSV/JSON + image)
+- [x] Intervals.icu connection (OAuth + API Key via Settings UI)
+- [x] Health Assistant LLM parameterization (URL/username/password via Settings UI)
 
 ## License
 
