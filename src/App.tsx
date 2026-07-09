@@ -2,16 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { ChevronsUpDown, LoaderCircle, RefreshCw, Sparkles } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+
 import {
   Sidebar,
   SidebarContent,
@@ -33,8 +24,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import type { DashboardData, AuthStatus, PageId } from '@/types'
 import { createDemoData, localIso } from '@/data/demo'
 import { normalizeIntervalsIcuData, type IntervalsIcuPayload } from '@/data/normalize'
-import { formatDate, relativeTime } from '@/lib/format'
+import { formatDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { SettingsDialog } from '@/components/Settings/SettingsDialog'
 import { ActivityView, WellnessView, FitnessView, PowerView, CalendarView, DataSourcesView, TodayView } from '@/components/Views'
 import { WorkoutView } from '@/components/WorkoutView'
 import { HealthAssistant } from '@/components/HealthAssistant'
@@ -50,7 +42,6 @@ import {
   CloseIcon,
   CloudIcon,
   DeviceIcon,
-  DisconnectIcon,
   HeartIcon,
   LoaderIcon,
   SettingsIcon,
@@ -502,59 +493,4 @@ function OpenFitIcuSidebar({
   )
 }
 
-function SettingsDialog({
-  open,
-  status,
-  dataSource,
-  onOpenChange,
-  onConnect,
-  onDisconnect,
-}: {
-  open: boolean
-  status: AuthStatus
-  dataSource: DashboardData['source']
-  onOpenChange: (open: boolean) => void
-  onConnect: () => void
-  onDisconnect: () => void
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="settings-dialog" showCloseButton>
-        <DialogHeader>
-          <div className="dialog-icon"><CloudIcon /></div>
-          <DialogTitle>{status.connected ? 'Intervals.icu connected' : 'Connect Intervals.icu'}</DialogTitle>
-          <DialogDescription>Your data is fetched directly from Intervals.icu. No data is stored on our servers.</DialogDescription>
-        </DialogHeader>
 
-        {status.connected ? (
-          <div className="connected-state">
-            <div className="connection-check"><CheckIcon /></div>
-            <div>
-              <h3>Sync active</h3>
-              <p>{status.athleteName ? `Connected as ${status.athleteName}` : ''}</p>
-              {status.lastSyncAt && <p>Last updated {relativeTime(status.lastSyncAt)}.</p>}
-            </div>
-            <div className="connected-actions">
-              <Button variant="destructive" onClick={() => void onDisconnect()}><DisconnectIcon /> Disconnect</Button>
-            </div>
-          </div>
-        ) : dataSource === 'demo' ? (
-          <div className="connected-state">
-            <div>
-              <h3>Demo mode</h3>
-              <p>Connect your Intervals.icu account to see real training data.</p>
-              <ol className="settings-steps">
-                <li>Create an OAuth app in your Intervals.icu account settings</li>
-                <li>Set the redirect URI to your app's callback URL</li>
-                <li>Click Connect to authorize</li>
-              </ol>
-            </div>
-            <div className="connected-actions">
-              <Button onClick={onConnect}><CloudIcon /> Connect Intervals.icu</Button>
-            </div>
-          </div>
-        ) : null}
-      </DialogContent>
-    </Dialog>
-  )
-}
