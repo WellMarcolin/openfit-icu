@@ -3,8 +3,8 @@ import { getValidAccessToken, proxyToIntervalsIcu } from '../lib/proxy'
 import { validateAthleteId, validateDateParam } from '../lib/validation'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const accessToken = await getValidAccessToken(req, res)
-  if (!accessToken) {
+  const auth = await getValidAccessToken(req, res)
+  if (!auth) {
     return res.status(401).json({ error: 'Not authenticated' })
   }
 
@@ -34,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (newest) params.append('newest', newest)
 
       const response = await proxyToIntervalsIcu(
-        accessToken,
+        auth,
         `/athlete/${athleteId}/wellness?${params}`
       )
 
@@ -64,7 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
       const response = await proxyToIntervalsIcu(
-        accessToken,
+        auth,
         `/athlete/${athleteId}/wellness`,
         { method: 'POST', body: req.body }
       )

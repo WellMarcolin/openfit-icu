@@ -7,8 +7,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const accessToken = await getValidAccessToken(req, res)
-  if (!accessToken) {
+  const auth = await getValidAccessToken(req, res)
+  if (!auth) {
     return res.status(401).json({ error: 'Not authenticated' })
   }
 
@@ -35,7 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (limit) params.append('limit', limit)
 
     const response = await proxyToIntervalsIcu(
-      accessToken,
+      auth,
       `/athlete/${athleteId}/activities?${params}`
     )
 
