@@ -17,7 +17,7 @@ describe('SettingsDialog', () => {
   })
 
   it('renders data source and AI assistant sections', () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue(
+    vi.spyOn(globalThis as any, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({}), { status: 200 })
     )
     render(
@@ -35,7 +35,7 @@ describe('SettingsDialog', () => {
   })
 
   it('shows connected state when status.connected is true', () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue(
+    vi.spyOn(globalThis as any, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({}), { status: 200 })
     )
     const connectedStatus: AuthStatus = {
@@ -60,7 +60,7 @@ describe('SettingsDialog', () => {
   })
 
   it('shows demo mode message when source is demo', () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue(
+    vi.spyOn(globalThis as any, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({}), { status: 200 })
     )
     render(
@@ -78,7 +78,7 @@ describe('SettingsDialog', () => {
   })
 
   it('renders API Key input', () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue(
+    vi.spyOn(globalThis as any, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({}), { status: 200 })
     )
     render(
@@ -95,7 +95,7 @@ describe('SettingsDialog', () => {
   })
 
   it('renders AI Assistant form fields', () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue(
+    vi.spyOn(globalThis as any, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({}), { status: 200 })
     )
     render(

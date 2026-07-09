@@ -6,7 +6,7 @@ export async function fetchSettings(): Promise<AppSettings> {
   return res.json()
 }
 
-export async function saveSettings(settings: Partial<AppSettings>): Promise<void> {
+export async function saveSettings(settings: Partial<AppSettings> & { opencodePassword?: string }): Promise<void> {
   const res = await fetch('/api/settings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

@@ -7,7 +7,7 @@ describe('fetchSettings', () => {
   })
 
   it('returns settings from API', async () => {
-    const mock = vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+    const mock = vi.spyOn(globalThis as any, 'fetch').mockResolvedValueOnce(
       new Response(JSON.stringify({
         intervalsApiKey: 'key-123',
         opencodeServerUrl: 'http://server:4096',
@@ -22,7 +22,7 @@ describe('fetchSettings', () => {
   })
 
   it('throws on non-ok response', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+    vi.spyOn(globalThis as any, 'fetch').mockResolvedValueOnce(
       new Response(null, { status: 500 })
     )
     await expect(fetchSettings()).rejects.toThrow('Failed to fetch settings')
@@ -35,7 +35,7 @@ describe('saveSettings', () => {
   })
 
   it('sends POST request with settings', async () => {
-    const mock = vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+    const mock = vi.spyOn(globalThis as any, 'fetch').mockResolvedValueOnce(
       new Response(null, { status: 200 })
     )
     await saveSettings({ intervalsApiKey: 'new-key' })
@@ -48,7 +48,7 @@ describe('saveSettings', () => {
   })
 
   it('throws on non-ok response', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+    vi.spyOn(globalThis as any, 'fetch').mockResolvedValueOnce(
       new Response(null, { status: 400 })
     )
     await expect(saveSettings({})).rejects.toThrow('Failed to save settings')
@@ -61,7 +61,7 @@ describe('testAssistantConnection', () => {
   })
 
   it('returns true when connection succeeds', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+    vi.spyOn(globalThis as any, 'fetch').mockResolvedValueOnce(
       new Response(null, { status: 200 })
     )
     const result = await testAssistantConnection('http://server', 'user', 'pass')
@@ -69,13 +69,13 @@ describe('testAssistantConnection', () => {
   })
 
   it('returns false when fetch fails', async () => {
-    vi.spyOn(global, 'fetch').mockRejectedValueOnce(new Error('Network error'))
+    vi.spyOn(globalThis as any, 'fetch').mockRejectedValueOnce(new Error('Network error'))
     const result = await testAssistantConnection('http://server', 'user', 'pass')
     expect(result).toBe(false)
   })
 
   it('returns false when response is not ok', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+    vi.spyOn(globalThis as any, 'fetch').mockResolvedValueOnce(
       new Response(null, { status: 401 })
     )
     const result = await testAssistantConnection('http://server', 'user', 'pass')
@@ -89,7 +89,7 @@ describe('testApiKey', () => {
   })
 
   it('sends key to validation endpoint and returns true on success', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+    vi.spyOn(globalThis as any, 'fetch').mockResolvedValueOnce(
       new Response(JSON.stringify({ valid: true }), { status: 200 })
     )
     const result = await testApiKey('some-api-key')
@@ -97,7 +97,7 @@ describe('testApiKey', () => {
   })
 
   it('returns false on network error', async () => {
-    vi.spyOn(global, 'fetch').mockRejectedValueOnce(new Error('Timeout'))
+    vi.spyOn(globalThis as any, 'fetch').mockRejectedValueOnce(new Error('Timeout'))
     const result = await testApiKey('bad')
     expect(result).toBe(false)
   })
