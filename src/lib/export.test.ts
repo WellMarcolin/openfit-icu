@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { toCSV, toJSON } from './export'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { toCSV, toJSON, downloadFile } from './export'
 
 describe('toCSV', () => {
   it('returns empty string for empty array', () => {
@@ -25,6 +25,54 @@ describe('toCSV', () => {
     const rows = [{ name: 'Easy, ride', note: 'He said "hi"' }]
     const csv = toCSV(rows, ['name', 'note'])
     expect(csv).toBe('name,note\n"Easy, ride","He said ""hi"""')
+  })
+})
+
+describe('downloadFile', () => {
+  let createObjectURLSpy: ReturnType<typeof vi.spyOn>
+  let revokeSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:test')
+    revokeSpy = vi.spyOn(URL, 'revokeObjectURL')
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    createObjectURLSpy.mockRestore()
+    revokeSpy.mockRestore()
+  })
+
+  it('triggers click on the anchor element', () => {
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click')
+    downloadFile('hello', 'test.csv', 'text/csv')
+    expect(clickSpy).toHaveBeenCalledOnce()
+    clickSpy.mockRestore()
+  })
+
+  it('appends anchor to DOM and removes after delay', () => {
+    const appendSpy = vi.spyOn(document.body, 'appendChild')
+    const removeSpy = vi.spyOn(document.body, 'removeChild')
+    downloadFile('hello', 'test.csv', 'text/csv')
+    expect(appendSpy).toHaveBeenCalled()
+    expect(removeSpy).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(300)
+    expect(removeSpy).toHaveBeenCalled()
+    appendSpy.mockRestore()
+    removeSpy.mockRestore()
+  })
+
+  it('does not revoke blob URL synchronously', () => {
+    downloadFile('hello', 'test.csv', 'text/csv')
+    expect(revokeSpy).not.toHaveBeenCalled()
+  })
+
+  it('revokes blob URL after download starts', () => {
+    downloadFile('hello', 'test.csv', 'text/csv')
+    expect(revokeSpy).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(300)
+    expect(revokeSpy).toHaveBeenCalledWith('blob:test')
   })
 })
 
