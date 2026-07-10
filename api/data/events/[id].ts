@@ -2,8 +2,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getValidAccessToken, proxyToIntervalsIcu } from '../../lib/proxy'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const accessToken = await getValidAccessToken(req, res)
-  if (!accessToken) {
+  const auth = await getValidAccessToken(req, res)
+  if (!auth) {
     return res.status(401).json({ error: 'Not authenticated' })
   }
 
@@ -13,7 +13,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === 'PUT') {
-    const response = await proxyToIntervalsIcu(accessToken, `/athlete/0/events/${id}`, {
+    const response = await proxyToIntervalsIcu(auth, `/athlete/0/events/${id}`, {
       method: 'PUT',
       body: req.body,
     })
@@ -27,7 +27,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === 'DELETE') {
-    const response = await proxyToIntervalsIcu(accessToken, `/athlete/0/events/${id}`, {
+    const response = await proxyToIntervalsIcu(auth, `/athlete/0/events/${id}`, {
       method: 'DELETE',
     })
 

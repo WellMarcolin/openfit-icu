@@ -12,9 +12,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Missing message or context' })
   }
 
-  const serverUrl = process.env.OPENCODE_SERVER_URL
-  const username = process.env.OPENCODE_SERVER_USERNAME
-  const password = process.env.OPENCODE_SERVER_PASSWORD
+  const serverUrl = process.env.OPENCODE_SERVER_URL || req.cookies?.opencode_server_url
+  const username = process.env.OPENCODE_SERVER_USERNAME || req.cookies?.opencode_username
+  const password = process.env.OPENCODE_SERVER_PASSWORD || req.cookies?.opencode_password
 
   if (!serverUrl) {
     return res.status(500).json({ error: 'OpenCode server not configured' })
