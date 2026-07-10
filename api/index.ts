@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import crypto from 'crypto'
-import { getAccessToken, getValidAccessToken, proxyToIntervalsIcu } from './lib/proxy'
-import { validateAthleteId, validateDateParam } from './lib/validation'
-import { OpenCodeClient, type HealthContext } from './lib/opencode-client'
+import { getAccessToken, getValidAccessToken, proxyToIntervalsIcu } from './lib/proxy.js'
+import { validateAthleteId, validateDateParam } from './lib/validation.js'
+import { OpenCodeClient, type HealthContext } from './lib/opencode-client.js'
 
 const VALID_SPORT_TYPES = new Set([
   'Ride', 'Run', 'Swim', 'Walk', 'Hike', 'WeightTraining',
