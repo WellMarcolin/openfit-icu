@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createMocks } from 'node-mocks-http'
-import handler from './config'
+import handler from '../index'
 
 describe('GET /api/assistant/config', () => {
   beforeEach(() => {
@@ -12,6 +12,7 @@ describe('GET /api/assistant/config', () => {
   it('returns config from cookies when no env vars', async () => {
     const { req, res } = createMocks({
       method: 'GET',
+      url: '/api/assistant/config',
       cookies: {
         opencode_server_url: 'http://cookie-server:4096',
         opencode_username: 'user',
@@ -30,6 +31,7 @@ describe('GET /api/assistant/config', () => {
     process.env.OPENCODE_SERVER_PASSWORD = 'env-pass'
     const { req, res } = createMocks({
       method: 'GET',
+      url: '/api/assistant/config',
       cookies: { opencode_server_url: 'http://cookie:4096' },
     })
     await handler(req as any, res as any)

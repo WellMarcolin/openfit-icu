@@ -10,11 +10,12 @@ vi.mock('../lib/proxy', () => ({
   proxyToIntervalsIcu: mockProxyToIntervalsIcu,
 }))
 
-import handler from './wellness'
+import handler from '../index'
 
 function mockReq(overrides: Record<string, unknown> = {}) {
   return {
     method: 'GET',
+    url: '/api/data/wellness',
     query: {},
     cookies: {},
     body: {},
@@ -178,30 +179,32 @@ describe('wellness handler', () => {
   })
 
   describe('other methods', () => {
-    it('returns 405 for PUT', async () => {
+    it('returns 404 for PUT (unregistered route)', async () => {
       const req = mockReq({
         method: 'PUT',
+        url: '/api/data/wellness',
         query: { athleteId: '12345' },
       })
       const res = mockRes()
 
       await handler(req, res)
 
-      expect(res.status).toHaveBeenCalledWith(405)
-      expect(res.json).toHaveBeenCalledWith({ error: 'Method not allowed' })
+      expect(res.status).toHaveBeenCalledWith(404)
+      expect(res.json).toHaveBeenCalledWith({ error: 'Not found' })
     })
 
-    it('returns 405 for DELETE', async () => {
+    it('returns 404 for DELETE (unregistered route)', async () => {
       const req = mockReq({
         method: 'DELETE',
+        url: '/api/data/wellness',
         query: { athleteId: '12345' },
       })
       const res = mockRes()
 
       await handler(req, res)
 
-      expect(res.status).toHaveBeenCalledWith(405)
-      expect(res.json).toHaveBeenCalledWith({ error: 'Method not allowed' })
+      expect(res.status).toHaveBeenCalledWith(404)
+      expect(res.json).toHaveBeenCalledWith({ error: 'Not found' })
     })
   })
 })

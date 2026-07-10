@@ -8,8 +8,8 @@ vi.mock('../../lib/proxy', () => ({
 
 import { getValidAccessToken } from '../../lib/proxy'
 
-function createMockReqRes(method: string, query: Record<string, unknown> = {}) {
-  const req = { method, query, cookies: {} } as any
+function createMockReqRes(method: string, path: string, query: Record<string, unknown> = {}) {
+  const req = { method, url: path, query, cookies: {} } as any
   const res = {
     status: vi.fn().mockReturnThis(),
     json: vi.fn().mockReturnThis(),
@@ -22,13 +22,13 @@ function createMockReqRes(method: string, query: Record<string, unknown> = {}) {
 describe('GET /api/data/workouts/[id]', () => {
   it('returns 200 with workout detail on success', async () => {
     ;(getValidAccessToken as any).mockResolvedValue('token')
-    const { req, res } = createMockReqRes('GET', { id: '42' })
+    const { req, res } = createMockReqRes('GET', '/api/data/workouts/42', { id: '42' })
     mockProxy.mockResolvedValue({
       ok: true,
       status: 200,
       json: async () => ({ id: 42, name: 'Test', workout_doc: { steps: [] } }),
     })
-    const handler = (await import('./[id]')).default
+    const handler = (await import('../../index')).default
     await handler(req, res)
     expect(res.status).toHaveBeenCalledWith(200)
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ id: 42 }))
@@ -36,17 +36,17 @@ describe('GET /api/data/workouts/[id]', () => {
 
   it('returns 401 without auth', async () => {
     ;(getValidAccessToken as any).mockResolvedValue(null)
-    const { req, res } = createMockReqRes('GET', { id: '42' })
-    const handler = (await import('./[id]')).default
+    const { req, res } = createMockReqRes('GET', '/api/data/workouts/42', { id: '42' })
+    const handler = (await import('../../index')).default
     await handler(req, res)
     expect(res.status).toHaveBeenCalledWith(401)
   })
 
-  it('returns 400 with missing id', async () => {
+  it('returns 404 for unregistered path (no id)', async () => {
     ;(getValidAccessToken as any).mockResolvedValue('token')
-    const { req, res } = createMockReqRes('GET', {})
-    const handler = (await import('./[id]')).default
+    const { req, res } = createMockReqRes('GET', '/api/data/workouts/')
+    const handler = (await import('../../index')).default
     await handler(req, res)
-    expect(res.status).toHaveBeenCalledWith(400)
+    expect(res.status).toHaveBeenCalledWith(404)
   })
 })

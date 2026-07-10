@@ -12,3 +12,5 @@ screenshots/
 .superpowers/
 .playwright-mcp/
 .worktrees/
+.vercel
+.env*

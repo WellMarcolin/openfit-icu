@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { createMocks } from 'node-mocks-http'
-import handler from './settings'
+import handler from './index'
 
 describe('GET /api/settings', () => {
   it('returns stored settings from cookies', async () => {
     const { req, res } = createMocks({
       method: 'GET',
+      url: '/api/settings',
       cookies: {
         intervals_api_key: 'key-123',
         opencode_server_url: 'http://server:4096',
@@ -23,7 +24,7 @@ describe('GET /api/settings', () => {
   })
 
   it('returns nulls when no cookies set', async () => {
-    const { req, res } = createMocks({ method: 'GET' })
+    const { req, res } = createMocks({ method: 'GET', url: '/api/settings' })
     await handler(req as any, res as any)
     const data = JSON.parse(res._getData())
     expect(data.intervalsApiKey).toBeNull()
@@ -32,9 +33,9 @@ describe('GET /api/settings', () => {
   })
 
   it('rejects unsupported methods', async () => {
-    const { req, res } = createMocks({ method: 'PUT' })
+    const { req, res } = createMocks({ method: 'PUT', url: '/api/settings' })
     await handler(req as any, res as any)
-    expect(res._getStatusCode()).toBe(405)
+    expect(res._getStatusCode()).toBe(404)
   })
 })
 
@@ -42,6 +43,7 @@ describe('POST /api/settings', () => {
   it('stores values as cookies', async () => {
     const { req, res } = createMocks({
       method: 'POST',
+      url: '/api/settings',
       body: { intervalsApiKey: 'new-key', opencodeServerUrl: 'http://new:4096' },
     })
     await handler(req as any, res as any)
@@ -56,6 +58,7 @@ describe('POST /api/settings', () => {
   it('clears value when empty string sent', async () => {
     const { req, res } = createMocks({
       method: 'POST',
+      url: '/api/settings',
       body: { intervalsApiKey: '' },
     })
     await handler(req as any, res as any)
